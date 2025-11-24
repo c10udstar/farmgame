@@ -1,0 +1,2880 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>像素农场：自动合成田地</title>
+  <style>
+    :root {
+      --bg: linear-gradient(135deg, #dfeee5 0%, #cde0da 50%, #d9e9f0 100%);
+      --card: #f6fbff;
+      --card-strong: #eef5fa;
+      --border: #d2dee7;
+      --text: #1f2b38;
+      --muted: #6b7a8a;
+      --accent: #62b38a;
+      --accent-2: #7a9bd0;
+      --warn: #f6b34e;
+      --danger: #f26d6d;
+      --success: #64c58a;
+      --shadow: 0 10px 30px rgba(0,0,0,0.08);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    h3 { margin: 0 0 6px; font-size: 15px; }
+    .layout { display: flex; gap: 16px; padding: 16px; }
+    .sidebar { display: flex; flex-direction: column; gap: 12px; }
+    .left { width: 220px; }
+    .right { width: 300px; }
+    .main { flex: 1; min-width: 620px; display: flex; flex-direction: column; gap: 12px; }
+    .card, .info-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow); }
+    .info-card strong.title { font-size: 14px; display: block; margin-bottom: 6px; }
+    .title::before { content: "💡 "; }
+    .farm-card-title::before { content: "🌾 "; }
+    .farm-deco-title::before { content: "🏠 "; }
+    .row { display: flex; gap: 12px; align-items: stretch; }
+    .grow { flex: 1; }
+    .center { display: flex; justify-content: center; align-items: center; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .value { font-weight: 700; color: var(--accent); }
+    .btn { padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: white; cursor: pointer; font-size: 13px; transition: 0.15s all ease; color: var(--text); }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+    .btn.primary { background: var(--accent); color: white; border-color: #58a27d; }
+    .btn.secondary { background: var(--accent-2); color: white; border-color: #6a8bbf; }
+    .btn.warn { background: var(--warn); color: #5b3b04; border-color: #e4a03f; }
+    .btn.danger { background: var(--danger); color: white; border-color: #e55b5b; }
+    .btn.small { padding: 5px 8px; font-size: 12px; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+    select, input[type="text"] { width: 100%; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--border); background: white; font-size: 13px; color: var(--text); }
+    ul { margin: 4px 0 0; padding-left: 16px; }
+    canvas { background: #f9f4f1; border-radius: 18px; box-shadow: var(--shadow); border: 10px solid #b0794b; }
+    #gameBoard { width: 540px; height: 540px; }
+    .canvas-wrap { display: flex; justify-content: center; align-items: center; }
+    .tag { display: inline-block; padding: 2px 6px; border-radius: 8px; font-size: 12px; background: var(--card-strong); border: 1px solid var(--border); margin-right: 4px; }
+    .tag.success { background: #e6f8ee; color: #2c8f5f; border-color: #b9e4cc; }
+    .tag.danger { background: #fdeaea; color: #c74747; border-color: #f3c0c0; }
+    .list-line { display: flex; justify-content: space-between; align-items: center; margin: 4px 0; font-size: 13px; }
+    .progress { width: 100%; height: 8px; background: #e6eef4; border-radius: 10px; overflow: hidden; }
+    .progress span { display: block; height: 100%; background: var(--accent); }
+    #toast { position: fixed; right: 22px; bottom: 22px; padding: 10px 14px; background: rgba(47,62,78,0.92); color: white; border-radius: 10px; opacity: 0; pointer-events: none; transform: translateY(10px); transition: 0.25s ease; box-shadow: var(--shadow); font-size: 13px; }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    .flex-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pill { padding: 4px 8px; border-radius: 10px; background: #eef3f8; border: 1px solid #d6e1eb; font-size: 12px; }
+    .highlight { color: var(--accent); font-weight: 700; }
+    .mode-btns .btn { margin-right: 6px; }
+    .full { width: 100%; }
+    .market-item-card { border: 1px dashed var(--border); border-radius: 12px; padding: 10px 12px; background: #fdfdfc; margin: 6px 0; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6); }
+    .market-title { font-weight: 700; margin-bottom: 4px; color: var(--text); }
+    .market-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .market-actions .btn { width: 100%; }
+    .processing-card { padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: #f6fbff; box-shadow: var(--shadow); margin-bottom: 8px; }
+    .processing-title { font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .processing-eta { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .recipe-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: #fff; margin-bottom: 8px; }
+    .recipe-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(98,179,138,0.2); }
+    .recipe-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .recipe-io { font-size: 12px; margin-bottom: 4px; }
+    .recipe-gain { color: var(--accent); font-size: 12px; margin-bottom: 6px; }
+    .recipe-footer .btn { width: 100%; }
+    .order-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: #fffef9; box-shadow: 0 2px 6px rgba(0,0,0,0.06); margin-bottom: 8px; }
+    .order-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+
+    /* 右侧栏美化 + 标签页布局 */
+    .sidebar.right {
+      gap: 10px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .sidebar.right .info-card {
+      padding: 10px 12px;
+      margin-bottom: 6px;
+    }
+
+    .right-tabs-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .right-tabs-header .tab-btn {
+      flex: 1;
+      text-align: center;
+      border-radius: 999px;
+      background: #eef3f8;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      padding: 6px 8px;
+      white-space: nowrap;
+    }
+
+    .right-tabs-header .tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: #58a27d;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    /* ===== 新增：农场左右侧栏布局与卡片 ===== */
+    .farm-layout {
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      gap: 16px;
+      row-gap: 12px;
+      max-width: 1280px;
+      margin: 0 auto;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+    .farm-sidebar {
+      width: 220px;
+      flex: 0 1 220px;
+      min-width: 160px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .farm-layout .canvas-wrap {
+      flex: 1 1 540px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-width: 540px;
+    }
+    .farm-deco-card,
+    .farm-stats-card,
+    .farm-actions-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      color: var(--text);
+    }
+    .farm-deco-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .farm-deco-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      background: var(--card-strong);
+      border: 1px solid var(--border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+    }
+    .farm-deco-icon svg {
+      width: 36px;
+      height: 36px;
+    }
+    .farm-card-title,
+    .farm-deco-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .farm-deco-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .farm-stats-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .farm-stats-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text);
+    }
+    .farm-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(98,179,138,0.15);
+      flex-shrink: 0;
+    }
+    .farm-action-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .farm-action-btn {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      box-shadow: 0 6px 16px rgba(98,179,138,0.18);
+      transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+    }
+    .farm-action-btn:hover {
+      transform: translateY(-1px) scale(1.01);
+      filter: brightness(1.03);
+      box-shadow: 0 8px 18px rgba(98,179,138,0.25);
+    }
+    .farm-action-btn:active {
+      transform: translateY(0);
+      filter: brightness(0.98);
+    }
+    @media (max-width: 1200px) {
+      .farm-layout {
+        flex-wrap: wrap;
+      }
+      .farm-layout .canvas-wrap {
+        order: 1;
+        flex: 1 1 100%;
+        min-width: 320px;
+      }
+      .farm-sidebar {
+        order: 2;
+        width: 100%;
+        flex: 1 1 160px;
+      }
+    }
+
+    /* 收获即时决策小面板 */
+    #harvestDecision {
+      position: fixed;
+      left: 50%;
+      bottom: 96px;
+      transform: translateX(-50%);
+      min-width: 260px;
+      max-width: 360px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 10px 12px;
+      z-index: 50;
+    }
+
+    #harvestDecision.hidden {
+      display: none;
+    }
+
+    #harvestDecisionTitle {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    #harvestDecisionText {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    #harvestDecisionButtons {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="sidebar left">
+      <div class="info-card">
+        <strong class="title">账号</strong>
+        <div style="display:flex; gap:6px; margin-bottom:6px;">
+          <select id="accountSelect"></select>
+          <input id="accountName" type="text" placeholder="新建账号名" />
+        </div>
+        <div class="flex-wrap">
+          <button class="btn small primary" onclick="createAccount()">创建/切换</button>
+          <button class="btn small" onclick="saveGame()">存档</button>
+          <button class="btn small" onclick="loadGame()">读档</button>
+          <button class="btn small danger" onclick="deleteAccount()">删除</button>
+        </div>
+      </div>
+      <div class="info-card">
+        <strong class="title">游戏日 / 时间</strong>
+        <div id="timeInfo" class="value">第1天 00:00</div>
+      </div>
+      <div class="info-card" id="weatherCard">
+        <strong class="title">天气</strong>
+        <div id="weatherName" class="value">晴天</div>
+        <div id="weatherDesc" class="muted">阳光明媚，作物正常生长。</div>
+      </div>
+      <div class="info-card" id="seasonCard">
+        <strong class="title">季节</strong>
+        <div id="seasonName" class="value">春季</div>
+        <div id="seasonDesc" class="muted">春回大地，作物生长略快，价格基本正常。</div>
+      </div>
+      <div class="info-card">
+        <strong class="title">金币</strong>
+        <div class="value" id="goldDisplay">50</div>
+      </div>
+      <div class="info-card" id="reputationCard">
+        <strong class="title">声望</strong>
+        <div id="reputationInfo">声望值0，0级</div>
+        <div id="reputationPerks" class="muted" style="margin-top:4px;">已获得天赋：无</div>
+
+        <div class="muted" style="margin-top:4px;">声望越高，可解锁更多方子和订单位</div>
+      </div>
+      <div class="info-card">
+        <strong class="title">每日任务</strong>
+        <div id="dailyQuest">等待刷新任务</div>
+      </div>
+      <div class="info-card">
+        <strong class="title">限时活动</strong>
+        <div class="muted">暂未开放，敬请期待</div>
+      </div>
+      <div class="info-card">
+        <strong class="title">排行榜</strong>
+        <div class="muted">声望越高+订单越多得分越高</div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="row">
+        <div class="info-card grow">
+          <strong class="title">提示</strong>
+          <div id="tipMessage" class="muted">先解锁几块土地再开始种植吧。</div>
+        </div>
+        <div class="info-card grow">
+          <strong class="title">土地信息</strong>
+          <div id="landInfo" class="muted">未选择地块。</div>
+        </div>
+        <div class="info-card" style="width: 220px;">
+          <strong class="title">操作模式</strong>
+          <div class="mode-btns">
+            <button class="btn small" id="modeNormal" onclick="setMode('normal')">正常</button>
+            <button class="btn small" id="modeSwap" onclick="setMode('swap')">交换</button>
+          </div>
+          <div class="muted" style="margin-top:6px;">三块同级已解锁土地会自动合成升级，手动合成功能已关闭。</div>
+        </div>
+      </div>
+
+      <div class="farm-layout">
+        <aside class="farm-sidebar farm-sidebar-left">
+          <div class="farm-deco-card">
+            <div class="farm-deco-icon" aria-hidden="true">
+              <svg viewBox="0 0 64 64" role="img" focusable="false">
+                <path d="M12 30.5 32 15l20 15.5" fill="none" stroke="#5f9f78" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                <rect x="18" y="30" width="28" height="20" rx="4" fill="#cde6d5" stroke="#6fa783" stroke-width="3"/>
+                <rect x="30" y="36" width="8" height="14" rx="2" fill="#f6fbff" stroke="#6fa783" stroke-width="2"/>
+                <path d="M22 30V22c0-2 1.5-3 3.5-3h13c2 0 3.5 1 3.5 3v8" fill="#f5d6b1" stroke="#c49a6c" stroke-width="3"/>
+              </svg>
+            </div>
+            <div class="farm-deco-text">
+              <div class="farm-deco-title">农舍 & 仓库</div>
+              <div class="muted">安静的小农舍，存放你的收获。</div>
+            </div>
+          </div>
+          <div class="farm-stats-card">
+            <div class="farm-card-title">农场概况</div>
+            <div class="farm-stats-row">
+              <span class="farm-dot"></span>
+              <span>已播种地块：<span id="farmStatPlanted">0 / 0</span></span>
+            </div>
+            <div class="farm-stats-row">
+              <span class="farm-dot"></span>
+              <span>成熟地块：<span id="farmStatReady">0 块</span></span>
+            </div>
+            <div class="farm-stats-row">
+              <span class="farm-dot"></span>
+              <span>全局加成：<span id="farmStatBonus">+0%</span></span>
+            </div>
+          </div>
+        </aside>
+
+        <div class="canvas-wrap">
+          <canvas id="gameBoard" width="540" height="540"></canvas>
+        </div>
+
+        <aside class="farm-sidebar farm-sidebar-right">
+          <div class="farm-deco-card">
+            <div class="farm-deco-icon" aria-hidden="true">
+              <svg viewBox="0 0 64 64" role="img" focusable="false">
+                <path d="M8 46c6-6 14-10 24-10s18 4 24 10" fill="#d7e7de"/>
+                <path d="M32 12v32" stroke="#7aa9d4" stroke-width="3" stroke-linecap="round"/>
+                <path d="M32 20 18 26l14 6 14-6-14-6Z" fill="#9fc5e5" stroke="#6a94bf" stroke-width="2" stroke-linejoin="round"/>
+                <rect x="28" y="44" width="8" height="8" rx="2" fill="#f6fbff" stroke="#6a94bf" stroke-width="2"/>
+              </svg>
+            </div>
+            <div class="farm-deco-text">
+              <div class="farm-deco-title">风车丘</div>
+              <div class="muted">风吹过，庄稼长得更快。</div>
+            </div>
+          </div>
+          <div class="farm-actions-card">
+            <div class="farm-card-title">快捷操作</div>
+            <div class="farm-action-list">
+              <button class="farm-action-btn btn primary" onclick="handleQuickHarvest()">一键收获</button>
+              <button class="farm-action-btn btn primary" onclick="handleQuickPlant()">一键播种</button>
+              <button class="farm-action-btn btn primary" onclick="handleQuickFertilize()">一键施肥</button>
+              <button class="farm-action-btn btn secondary" onclick="handleToggleDisplayMode()">切换显示模式</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="row">
+        <div class="info-card grow">
+          <strong class="title">主线目标</strong>
+          <div id="mainQuest" class="muted">打造你的第一片黄金田。</div>
+        </div>
+        <div class="info-card grow">
+          <strong class="title">成就进度</strong>
+          <div id="achievements" class="muted">已完成 0 / 3</div>
+        </div>
+        <div class="info-card grow">
+          <strong class="title">AI 对话</strong>
+          <div class="muted">// TODO：后续加入 AI 对话</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar right">
+      <!-- 标签头 -->
+      <div class="info-card">
+        <div class="right-tabs-header">
+          <button class="btn small tab-btn active" data-tab="plant">种植</button>
+          <button class="btn small tab-btn" data-tab="trade">交易</button>
+          <button class="btn small tab-btn" data-tab="market">市场</button>
+          <button class="btn small tab-btn" data-tab="process">加工</button>
+          <button class="btn small tab-btn" data-tab="achievement">成就</button>
+        </div>
+      </div>
+
+      <!-- 种植标签页 -->
+      <div class="tab-panel active" data-tab="plant">
+        <div class="info-card">
+          <strong class="title">种植选择</strong>
+          <select id="seedSelect"></select>
+          <div class="muted" style="margin-top:6px;">在解锁地块上种植当前选择的种子</div>
+        </div>
+        <div class="info-card">
+          <strong class="title">背包</strong>
+          <div id="inventoryList"></div>
+        </div>
+        <div class="info-card">
+          <strong class="title">仓库</strong>
+          <div id="storageRaw" class="muted">原料：小麦 x0 | 玉米 x0 | 南瓜 x0 | 萝卜 x0 | 草莓 x0</div>
+          <div id="storageGoods" class="muted" style="margin-top:4px;">成品：面包 x0 | 爆米花 x0 | 南瓜派 x0 | 腌萝卜 x0 | 草莓酱 x0</div>
+        </div>
+        <div class="info-card">
+          <strong class="title">增益 / 清理</strong>
+          <div class="flex-wrap">
+            <button class="btn small secondary" onclick="boostTile()">施肥（+10%速度）</button>
+            <button class="btn small" onclick="cleanTile()">清理（移除作物）</button>
+          </div>
+          <div class="muted" style="margin-top:6px;">施肥作用于当前选中的地块，加速生长；清理会移除当前作物。</div>
+        </div>
+      </div>
+
+      <!-- 交易标签页 -->
+      <div class="tab-panel" data-tab="trade">
+        <div class="info-card" id="shopCard">
+          <strong class="title">农场商店</strong>
+          <div id="shopList"></div>
+        </div>
+        <div class="info-card">
+          <strong class="title">订单</strong>
+          <div id="ordersList" class="muted">暂无订单</div>
+        </div>
+      </div>
+
+      <!-- 市场标签页 -->
+      <div class="tab-panel" data-tab="market">
+        <div class="info-card" id="marketCard">
+          <strong class="title">农产品市场</strong>
+          <div id="marketList" class="muted"></div>
+          <div class="muted" style="margin-top:6px;">提示：在市场出售不会获得声望，完成订单才会提升声望。</div>
+        </div>
+      </div>
+
+      <!-- 加工标签页 -->
+      <div class="tab-panel" data-tab="process">
+        <div class="info-card">
+          <strong class="title">加工车间</strong>
+          <div id="processingCapacityText" class="muted">加工位：0 / 1</div>
+          <div id="processingStatus" class="muted" style="margin-top:4px;">空闲中</div>
+          <div id="processingBtns" style="margin-top:8px;"></div>
+          <div id="processingUpgrade" style="margin-top:8px;"></div>
+        </div>
+        <div class="info-card">
+          <div class="muted">提示：商品加工需要时间，成品可交付订单，声望到 2 级解锁南瓜派。</div>
+        </div>
+      </div>
+
+      <!-- 成就标签页 -->
+      <div class="tab-panel" data-tab="achievement">
+        <div class="info-card">
+          <strong class="title">成就</strong>
+          <div id="achievementDetails" class="muted">成就：1 槽解锁 / 完成高级配方 / 完成 3 张订单</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="harvestDecision" class="hidden">
+    <div id="harvestDecisionTitle">收获决策</div>
+    <div id="harvestDecisionText" class="muted"></div>
+    <div id="harvestDecisionButtons">
+      <button class="btn small primary" onclick="confirmHarvestDecision('sell')">直接卖掉</button>
+      <button class="btn small" onclick="confirmHarvestDecision('store')">入仓加工</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+  // ========= 数据定义 =========
+  const DAY_MINUTES = 24 * 60;
+  const TIME_SPEED = 5; // 每秒现实时间对应的游戏分钟数，可根据需要调节
+
+  // ========= 每日天气系统 =========
+  const WEATHER_TYPES = [
+    {
+      id: 'sunny',
+      name: '晴天',
+      desc: '阳光明媚，作物正常生长。',
+      growFactor: 1.0
+    },
+    {
+      id: 'cloudy',
+      name: '多云',
+      desc: '光照稍弱，作物生长略慢。',
+      growFactor: 1.05
+    },
+    {
+      id: 'rainy',
+      name: '小雨',
+      desc: '雨水充足，作物生长稍快。',
+      growFactor: 0.9
+    },
+    {
+      id: 'storm',
+      name: '暴雨',
+      desc: '天气恶劣，但雨水充足，作物生长明显加快。',
+      growFactor: 0.8
+    }
+  ];
+
+  // weather: 当前天气下标，以及记录天气生成的游戏日
+  let currentWeatherIndex = 0;
+  let lastWeatherDay = 0;
+
+  // ========= 季节系统（春夏秋冬，每季 21 天） =========
+  const SEASONS = [
+    {
+      id: 'spring',
+      name: '春季',
+      desc: '春回大地，作物生长略快，价格基本正常。',
+      growFactor: 0.9,
+      priceFactorRaw: 1.0,
+      priceFactorGoods: 1.0
+    },
+    {
+      id: 'summer',
+      name: '夏季',
+      desc: '烈日炎炎，成品需求上升，售价略高。',
+      growFactor: 1.0,
+      priceFactorRaw: 1.0,
+      priceFactorGoods: 1.10
+    },
+    {
+      id: 'autumn',
+      name: '秋季',
+      desc: '丰收的季节，原料需求变高。',
+      growFactor: 1.0,
+      priceFactorRaw: 1.10,
+      priceFactorGoods: 1.0
+    },
+    {
+      id: 'winter',
+      name: '冬季',
+      desc: '寒风凛冽，作物生长略慢，但粮食整体更值钱。',
+      growFactor: 1.10,
+      priceFactorRaw: 1.05,
+      priceFactorGoods: 1.05
+    }
+  ];
+
+  // 每个季节持续的游戏日数：21 天
+  const SEASON_LENGTH_DAYS = 21;
+
+  // 当前季节下标
+  let currentSeasonIndex = 0;
+  const GRID_SIZE = 4;
+  const LAND_LEVEL_CONFIG = {
+    1: { type: '基础', fertility: 1, color: '#d8c8ae' },
+    2: { type: '肥沃', fertility: 1.2, color: '#c9d7a6' },
+    3: { type: '魔法', fertility: 1.45, color: '#c2d6f5' },
+    4: { type: '神秘', fertility: 1.75, color: '#d6bff5' },
+    5: { type: '传说', fertility: 2.1, color: '#f5d6b1' }
+  };
+  const MAX_LAND_LEVEL = 5;
+  const BALANCE_CONFIG = {
+    unlockBaseCost: 30,
+    unlockCostStep: 12,
+    unlockCostRamp: 20
+  };
+  const upgradeCosts = { 1: 25, 2: 60, 3: 140, 4: 320 };
+
+  const seeds = {
+    basic_wheat: { id: 'basic_wheat', name: '基础小麦', cost: 8, growTime: 420, yield: [2,3], basePrice: 10, desc: '短周期粮食，适合起步练手。' },
+    mid_corn:   { id: 'mid_corn', name: '甜玉米', cost: 22, growTime: 960, yield: [2,3], basePrice: 18, desc: '中周期作物，收益稳步提升。' },
+    high_pumpkin: { id: 'high_pumpkin', name: '金色南瓜', cost: 45, growTime: 2400, yield: [1,2], basePrice: 40, desc: '长周期高价作物，耐心等待大丰收。' },
+
+    // new seed: 脆皮萝卜
+    fast_radish: {
+      id: 'fast_radish',
+      name: '脆皮萝卜',
+      cost: 6,
+      growTime: 300,
+      yield: [2, 4],
+      basePrice: 8,
+      desc: '超短周期、多产的小菜，适合刷每日任务。' // new seed
+    },
+
+    // new seed: 草莓
+    berry: {
+      id: 'berry',
+      name: '草莓',
+      cost: 30,
+      growTime: 1500,
+      yield: [2, 3],
+      basePrice: 28,
+      desc: '甜美的草莓，适合中后期高价值订单。' // new seed
+    }
+  };
+
+  const CROP_PROGRESS_COLORS = {
+    basic_wheat: '#a6c48a',   // 小麦：柔和草绿
+    mid_corn: '#f2c14e',      // 玉米：暖黄色
+    high_pumpkin: '#e58f65'   // 南瓜：橙色
+  };
+
+  const harvestRawMap = {
+    basic_wheat: 'wheat',
+    mid_corn: 'corn',
+    high_pumpkin: 'pumpkin',
+    fast_radish: 'radish',     // new seed mapping
+    berry: 'strawberry'        // new seed mapping
+  };
+
+  const processingRecipes = {
+    bread: { id: 'bread', name: '面包', input: { wheat: 3 }, timeMinutes: 6 * 60, output: { bread: 1 }, unlockLevel: 0, tip: '用小麦发酿出的香气面包。' },
+    popcorn: { id: 'popcorn', name: '爆米花', input: { corn: 2 }, timeMinutes: 8 * 60, output: { popcorn: 1 }, unlockLevel: 0, tip: '酥脆的玉米零食。' },
+    pumpkin_pie: { id: 'pumpkin_pie', name: '南瓜派', input: { pumpkin: 1, wheat: 1 }, timeMinutes: 12 * 60, output: { pumpkin_pie: 1 }, unlockLevel: 2, tip: '高值配方，节日限定美味。' },
+
+    // new product: 腌萝卜
+    radish_pickles: {
+      id: 'radish_pickles',
+      name: '腌萝卜',
+      input: { radish: 3 },
+      timeMinutes: 3 * 60,
+      output: { radish_pickles: 1 },
+      unlockLevel: 0,
+      tip: '清爽开胃的小菜，适合快速周转。' // new product
+    },
+
+    // new product: 草莓酱
+    berry_jam: {
+      id: 'berry_jam',
+      name: '草莓酱',
+      input: { strawberry: 3, wheat: 1 },
+      timeMinutes: 10 * 60,
+      output: { berry_jam: 1 },
+      unlockLevel: 1,
+      tip: '甜甜的草莓酱，高价值订单常客。' // new product
+    }
+  };
+
+
+
+  // ========= 天赋（Perk）系统 =========
+  const PERKS = {
+    moreYield: {
+      id: 'moreYield',
+      name: '丰收田',
+      desc: '所有作物产量 +5%。',
+      effect: { yieldBonus: 0.05 }
+    }
+  };
+
+  // perk: 所有天赋最终汇总成一个全局修正系数对象
+  let globalModifiers = {
+    yieldBonus: 0  // 产量加成
+  };
+  const goodsPrices = {
+    bread: 28,
+    popcorn: 38,
+    pumpkin_pie: 65,
+    radish_pickles: 24, // new
+    berry_jam: 60       // new
+  };
+  const RAW_SELL_PRICES = {
+    wheat: 4,
+    corn: 7,
+    pumpkin: 15,
+    radish: 3,          // new
+    strawberry: 14      // new
+  };
+  const GOODS_SELL_PRICES = {
+    bread: 23,
+    popcorn: 31,
+    pumpkin_pie: 54,
+    radish_pickles: 20, // new
+    berry_jam: 50       // new
+  };
+  const MARKET_PRICE_TEMPLATE = {
+    wheat: 1,
+    corn: 1,
+    pumpkin: 1,
+    radish: 1,
+    strawberry: 1,
+    bread: 1,
+    popcorn: 1,
+    pumpkin_pie: 1,
+    radish_pickles: 1,
+    berry_jam: 1
+  };
+  const MAX_ORDERS_BASE = 2;
+
+  let grid = [];
+  let gold = 300;
+  let gameTimeMinutes = 0;
+  let lastTick = Date.now();
+  let tipMessage = '先解锁几块土地再开始种植吧。';
+  let selectedSeed = '';
+  let selectedTile = -1;
+  let mode = 'normal'; // normal | swap
+  let swapSelection = [];
+  let inventory = { basic_wheat: 2, mid_corn: 0, high_pumpkin: 0, fast_radish: 0, berry: 0 }; // new seed
+  let storage = {
+    raw: {
+      wheat: 0,
+      corn: 0,
+      pumpkin: 0,
+      radish: 0,      // new raw
+      strawberry: 0   // new raw
+    },
+    goods: {
+      bread: 0,
+      popcorn: 0,
+      pumpkin_pie: 0,
+      radish_pickles: 0, // new product
+      berry_jam: 0       // new product
+    }
+  };
+  let processingSlots = [];     // 当前正在加工的所有加工位
+  let maxProcessingSlots = 1;   // 当前解锁的加工位数量，初始为 1
+  let activeOrders = [];
+  let lastGameDay = 1;
+  let playerStats = { reputation: 0, perks: [] };
+  let achievementsState = { harvestCount: 0, ordersDone: 0, highRecipe: false, claimed: {} };
+  let dailyQuestState = null;
+  let mainQuestState = { step: 0, completed: false };
+  let marketPriceModifier = { ...MARKET_PRICE_TEMPLATE };
+  let lastReadyCount = 0;
+  let visualEffects = [];
+  let pendingHarvestDecision = null; // 收获时等待玩家选择的决策数据
+
+  const achievementsConfig = [
+    { id: 'new_farmer', name: '\u65b0\u624b\u519c\u592b', desc: '\u7d2f\u8ba1\u6536\u83b7 10 \u6b21\u4f5c\u7269', isCompleted: state => state.harvestCount >= 10 },
+    { id: 'order_master', name: '\u8ba2\u5355\u80fd\u624b', desc: '\u7d2f\u8ba1\u5b8c\u6210 3 \u5f20\u8ba2\u5355', isCompleted: state => state.ordersDone >= 3 },
+    { id: 'high_recipe', name: '\u9ad8\u7ea7\u914d\u65b9\u8fbe\u4eba', desc: '\u505a\u51fa\u4e00\u6b21\u9ad8\u7ea7\u914d\u65b9', isCompleted: state => !!state.highRecipe }
+  ];
+  const achievementRewards = {
+    new_farmer: { gold: 50, reputation: 1 },
+    order_master: { gold: 120, reputation: 2 },
+    high_recipe: { gold: 100, reputation: 1 }
+  };
+
+  // ========= 土地皮肤 / 小装饰 =========
+
+  // 判断某个成就是否已经完成
+  function isAchievementCompleted(id) {
+    const cfg = achievementsConfig.find(a => a.id === id);
+    return cfg ? cfg.isCompleted(achievementsState) : false;
+  }
+
+  // 根据当前成就 + 土地等级，给 tile 选一个皮肤
+  function updateTileSkin(tile) {
+    if (!tile) return;
+
+    // Lv3 以下不显示皮肤
+    if (tile.landLevel < 3) {
+      tile.skin = null;
+      return;
+    }
+
+    // 简单优先级规则（高级成就覆盖低级成就）
+    if (isAchievementCompleted('high_recipe')) {
+      tile.skin = 'scarecrow'; // 完成南瓜派 → 稻草人
+    } else if (isAchievementCompleted('order_master')) {
+      tile.skin = 'windmill';  // 订单达人 → 小风车
+    } else if (isAchievementCompleted('new_farmer')) {
+      tile.skin = 'flower';    // 新手农夫 → 小花丛
+    } else {
+      tile.skin = null;
+    }
+  }
+
+  // 一次性刷新所有地块皮肤
+  function refreshAllTileSkins() {
+    grid.forEach(updateTileSkin);
+  }
+
+  const canvas = document.getElementById('gameBoard');
+  const ctx = canvas.getContext('2d');
+
+  // ========= 初始化 =========
+  function landLevelToType(level) { return (LAND_LEVEL_CONFIG[level] || LAND_LEVEL_CONFIG[1]).type; }
+  function landLevelToFertility(level) { return (LAND_LEVEL_CONFIG[level] || LAND_LEVEL_CONFIG[1]).fertility; }
+  function landLevelToColor(level) { return (LAND_LEVEL_CONFIG[level] || LAND_LEVEL_CONFIG[1]).color; }
+
+  function updateTileLevel(tile, level) {
+    tile.landLevel = level;
+    tile.landType = landLevelToType(level);
+    tile.land = tile.landType;
+    tile.fertility = landLevelToFertility(level);
+    updateTileSkin(tile); // 新增：等级变化时刷新皮肤
+  }
+
+  function createTile(locked = true, level = 1) {
+    return {
+      locked,
+      landLevel: level,
+      landType: landLevelToType(level),
+      land: landLevelToType(level),
+      fertility: landLevelToFertility(level),
+      crop: null,
+      plantedAt: 0,
+      growTime: 0,
+      ready: false,
+      skin: null // 新增：土地皮肤（纯外观用）
+    };
+  }
+
+  function initGrid() {
+    grid = new Array(GRID_SIZE * GRID_SIZE).fill(0).map(() => createTile(true, 1));
+    for (let i = 0; i < 3; i++) {
+      grid[i].locked = false;
+      updateTileLevel(grid[i], 1);
+    }
+  }
+
+  function init() {
+    initGrid();
+    renderSeedSelect();
+    renderShop();
+    ensureTestAccount();
+    loadAccountsToSelect();
+    bindCanvas();
+    refreshMarketPrices(1);
+    updateSeasonByGameTime();
+    renderSeasonCard();
+    updateUI();
+    setMode('normal');
+    initRightTabs();
+    setInterval(gameLoop, 1000);
+    animationLoop();
+  }
+
+  function bindCanvas() {
+    canvas.addEventListener('click', evt => {
+      const rect = canvas.getBoundingClientRect();
+      const x = evt.clientX - rect.left;
+      const y = evt.clientY - rect.top;
+      const tileSize = canvas.width / GRID_SIZE;
+      const tx = Math.floor(x / tileSize);
+      const ty = Math.floor(y / tileSize);
+      const idx = ty * GRID_SIZE + tx;
+      handleTileClick(idx);
+    });
+  }
+
+ 
+  // ========= UI 渲染 =========
+  function renderSeedSelect() {
+    const sel = document.getElementById('seedSelect');
+    if (!sel) return;
+    sel.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '请选择种子';
+    sel.appendChild(placeholder);
+    Object.values(seeds).forEach(seed => {
+      const opt = document.createElement('option');
+      opt.value = seed.id;
+      opt.textContent = `${seed.name}｜成本 ${seed.cost} 金币`;
+      sel.appendChild(opt);
+    });
+    sel.value = selectedSeed || '';
+    sel.onchange = () => {
+      selectedSeed = sel.value;
+      if (!selectedSeed) { tip('请选择种子'); return; }
+      if (seeds[selectedSeed]) {
+        tip(`已选择 ${seeds[selectedSeed].name}`);
+      } else {
+        tip('请选择种子');
+      }
+    };
+  }
+
+  function renderShop() {
+    const wrap = document.getElementById('shopList');
+    wrap.innerHTML = '';
+    Object.values(seeds).forEach(seed => {
+      const row = document.createElement('div');
+      row.className = 'list-line';
+      row.innerHTML = `
+        <div>
+          <div>${seed.name}</div>
+          <div class="muted">价格: ${seed.cost} | 成熟: ${formatDuration(seed.growTime)}</div>
+        </div>`;
+      const btn = document.createElement('button');
+      btn.className = 'btn small primary';
+      btn.textContent = '购买';
+      btn.onclick = () => buySeed(seed.id);
+      row.appendChild(btn);
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderInventory() {
+    const wrap = document.getElementById('inventoryList');
+    wrap.innerHTML = '';
+    Object.keys(seeds).forEach(id => {
+      const count = inventory[id] || 0;
+      const div = document.createElement('div');
+      div.className = 'list-line';
+      div.innerHTML = `<span>${seeds[id].name}</span><span class="muted">x${count}</span>`;
+      wrap.appendChild(div);
+    });
+  }
+
+  function renderStorage() {
+    const r = storage.raw;
+    const g = storage.goods;
+    document.getElementById('storageRaw').textContent =
+      `原料：小麦 x${r.wheat} | 玉米 x${r.corn} | 南瓜 x${r.pumpkin} | 萝卜 x${r.radish} | 草莓 x${r.strawberry}`;
+    document.getElementById('storageGoods').textContent =
+      `成品：面包 x${g.bread} | 爆米花 x${g.popcorn} | 南瓜派 x${g.pumpkin_pie} | 腌萝卜 x${g.radish_pickles} | 草莓酱 x${g.berry_jam}`;
+  }
+
+  function renderMarket() {
+    const wrap = document.getElementById('marketList');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    const makeTag = (mod) => {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      if (mod < 0.95) { tag.classList.add('danger'); tag.textContent = '价格低迷'; }
+      else if (mod > 1.05) { tag.classList.add('success'); tag.textContent = '价格高涨 · 推荐出售'; }
+      else { tag.textContent = '价格正常'; }
+      return tag;
+    };
+    const addLine = (kind, id, name, count) => {
+      const price = getMarketPrice(kind, id);
+      const mod = marketPriceModifier[id] ?? 1;
+      const card = document.createElement('div');
+      card.className = 'market-item-card';
+
+      const title = document.createElement('div');
+      title.className = 'market-title';
+      title.textContent = name;
+      card.appendChild(title);
+
+      const meta = document.createElement('div');
+      meta.className = 'market-meta';
+      meta.innerHTML = `<span>库存 <strong>${count}</strong></span><span>单价 ${price} 金币</span>`;
+      card.appendChild(meta);
+
+      const tag = makeTag(mod);
+      card.appendChild(tag);
+
+      const actions = document.createElement('div');
+      actions.className = 'market-actions';
+      const btnAll = document.createElement('button');
+      btnAll.className = 'btn small primary full';
+      btnAll.textContent = '全部出售';
+      btnAll.disabled = count <= 0;
+      btnAll.onclick = () => sellItem(kind, id);
+      actions.appendChild(btnAll);
+      card.appendChild(actions);
+
+      wrap.appendChild(card);
+    };
+    Object.entries(storage.raw).forEach(([k,v]) => addLine('raw', k, rawName(k), v));
+    Object.entries(storage.goods).forEach(([k,v]) => addLine('goods', k, goodsName(k), v));
+  }
+
+  function formatDuration(mins) {
+    const h = Math.floor(mins / 60);
+    const m = Math.round(mins % 60);
+    if (h <= 0) return `${m} 分钟`;
+    if (m === 0) return `${h} 小时`;
+    return `${h} 小时 ${m} 分钟`;
+  }
+
+  function formatETA(slot) {
+    const finish = (slot.startedAt || 0) + (slot.timeTotal || 0);
+    const day = Math.floor(finish / DAY_MINUTES) + 1;
+    const dayMinutes = Math.floor(finish % DAY_MINUTES);
+    const h = Math.floor(dayMinutes / 60).toString().padStart(2,'0');
+    const m = Math.floor(dayMinutes % 60).toString().padStart(2,'0');
+    return `预计在第${day}天 ${h}:${m} 完成`;
+  }
+
+  function calcExtraGain(recipe) {
+    const rawValue = Object.entries(recipe.input || {}).reduce((sum,[k,v]) => sum + (RAW_SELL_PRICES[k] || 0) * v, 0);
+    const outValue = Object.entries(recipe.output || {}).reduce((sum,[k,v]) => sum + (GOODS_SELL_PRICES[k] || 0) * v, 0);
+    return outValue - rawValue;
+  }
+
+  function renderProcessing() {
+    const status = document.getElementById('processingStatus');
+    const btns = document.getElementById('processingBtns');
+    const capEl = document.getElementById('processingCapacityText');
+    const upgradeWrap = document.getElementById('processingUpgrade');
+
+    if (btns) btns.innerHTML = '';
+    if (status) status.innerHTML = '';
+
+    // 显示当前加工位占用情况
+    if (capEl) {
+      capEl.textContent = '加工位：' + processingSlots.length + ' / ' + maxProcessingSlots;
+    }
+
+    // 显示每个正在加工的加工位
+    if (!processingSlots.length) {
+      if (status) status.textContent = '空闲中';
+    } else if (status) {
+      processingSlots.forEach(function (slot, index) {
+        const recipe = processingRecipes[slot.recipeId];
+        if (!recipe) return;
+
+        const elapsed = gameTimeMinutes - slot.startedAt;
+        const p = Math.min(1, elapsed / slot.timeTotal);
+
+        const card = document.createElement('div');
+        card.className = 'processing-card';
+
+        const title = document.createElement('div');
+        title.className = 'processing-title';
+        title.textContent = '加工位 ' + (index + 1) + '：' + recipe.name;
+        card.appendChild(title);
+
+        const eta = document.createElement('div');
+        eta.className = 'processing-eta';
+        eta.textContent = formatETA(slot);
+        card.appendChild(eta);
+
+        const bar = document.createElement('div');
+        bar.className = 'progress';
+        bar.innerHTML = '<span style=\"width:' + p * 100 + '%\"></span>';
+        card.appendChild(bar);
+
+        status.appendChild(card);
+      });
+    }
+
+    // 配方按钮（可以在有空闲加工位时继续排新单）
+    Object.values(processingRecipes).forEach(function (recipe) {
+      const level = getReputationLevel();
+      const locked = level < recipe.unlockLevel;
+      const enough = hasInput(recipe.input);
+      const busy = processingSlots.length >= maxProcessingSlots; // 没有空闲加工位
+      const isActive = processingSlots.some(function (slot) {
+        return slot.recipeId === recipe.id;
+      });
+
+      const card = document.createElement('div');
+      card.className = 'recipe-card';
+      if (isActive) card.classList.add('active');
+
+      const head = document.createElement('div');
+      head.className = 'recipe-head';
+      head.innerHTML =
+        '<strong>' +
+        recipe.name +
+        '</strong><span class=\"muted\">' +
+        formatDuration(recipe.timeMinutes) +
+        '</span>';
+      card.appendChild(head);
+
+      const io = document.createElement('div');
+      io.className = 'recipe-io muted';
+      const inputStr = Object.entries(recipe.input)
+        .map(function ([k, v]) {
+          return rawName(k) + ' x' + v;
+        })
+        .join(' + ');
+      const outputStr = Object.entries(recipe.output)
+        .map(function ([k, v]) {
+          return goodsName(k) + ' x' + v;
+        })
+        .join(' + ');
+      io.textContent = inputStr + ' → ' + outputStr;
+      card.appendChild(io);
+
+      const gain = calcExtraGain(recipe);
+      const gainLine = document.createElement('div');
+      gainLine.className = 'recipe-gain';
+      gainLine.textContent =
+        '预计额外收益：' + (gain >= 0 ? '+' : '') + gain + ' 金币';
+      card.appendChild(gainLine);
+
+      if (locked) {
+        const lockInfo = document.createElement('div');
+        lockInfo.className = 'muted';
+        lockInfo.textContent = '声望达到 ' + recipe.unlockLevel + ' 级解锁';
+        card.appendChild(lockInfo);
+      }
+
+      const btnWrap = document.createElement('div');
+      btnWrap.className = 'recipe-footer';
+      const btn = document.createElement('button');
+      btn.className = 'btn small full';
+      btn.textContent = locked
+        ? recipe.name + '（声望' + recipe.unlockLevel + '级解锁）'
+        : '加工 ' + recipe.name;
+      btn.disabled = busy || locked || !enough;
+      btn.onclick = function () {
+        startProcessing(recipe.id);
+      };
+      btnWrap.appendChild(btn);
+      card.appendChild(btnWrap);
+
+      if (btns) btns.appendChild(card);
+    });
+
+    // 购买加工位 UI
+    if (upgradeWrap) {
+      upgradeWrap.innerHTML = '';
+      if (maxProcessingSlots < PROCESS_SLOT_MAX) {
+        const cost = getNextProcessSlotCost();
+        const btn = document.createElement('button');
+        btn.className = 'btn small secondary full';
+        btn.textContent = '购买新的加工位（' + cost + ' 金币）';
+        btn.disabled = gold < cost;
+        btn.onclick = buyProcessSlot;
+        upgradeWrap.appendChild(btn);
+
+        const hint = document.createElement('div');
+        hint.className = 'muted';
+        hint.style.marginTop = '4px';
+        hint.textContent = '最多可同时加工 ' + PROCESS_SLOT_MAX + ' 批商品。';
+        upgradeWrap.appendChild(hint);
+      } else {
+        const hint = document.createElement('div');
+        hint.className = 'muted';
+        hint.textContent = '加工位已全部解锁。';
+        upgradeWrap.appendChild(hint);
+      }
+    }
+  }
+
+  function renderOrders() {
+    const wrap = document.getElementById('ordersList');
+    wrap.innerHTML = '';
+    const pending = activeOrders.filter(o => o.status === 'pending');
+    if (pending.length === 0) { wrap.textContent = '暂无订单'; return; }
+    const currentDay = Math.floor(gameTimeMinutes / DAY_MINUTES) + 1;
+    pending.forEach(order => {
+      const remainingDays = order.deadlineDay - currentDay;
+      if (remainingDays <= -1) return;
+      const card = document.createElement('div');
+      card.className = 'order-card';
+
+      const head = document.createElement('div');
+      head.className = 'order-head';
+      const title = document.createElement('strong');
+      title.textContent = order.title;
+      head.appendChild(title);
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      if (remainingDays <= 1) { tag.classList.add('danger'); tag.textContent = '紧急'; }
+      else if (remainingDays === 2) { tag.textContent = '即将截止'; }
+      else { tag.classList.add('success'); tag.textContent = '宽裕'; }
+      head.appendChild(tag);
+      card.appendChild(head);
+
+      const need = Object.entries(order.require).map(([k,v]) => `${goodsName(k)} x${v}`).join('，');
+      const needLine = document.createElement('div');
+      needLine.className = 'muted';
+      needLine.textContent = `需求：${need}`;
+      card.appendChild(needLine);
+
+      const reward = document.createElement('div');
+      reward.className = 'muted';
+      reward.textContent = `奖励：金币 ${order.reward.gold} / 声望 ${order.reward.reputation}${order.reward.seeds ? ` / 种子 ${seeds[order.reward.seeds].name}` : ''}`;
+      card.appendChild(reward);
+
+      const deadline = document.createElement('div');
+      deadline.className = 'muted';
+      const left = Math.max(0, remainingDays);
+      deadline.textContent = `截止到第 ${order.deadlineDay} 天，还剩 ${left} 天`;
+      card.appendChild(deadline);
+
+      const can = canDeliver(order);
+      if (!can) {
+        const missing = Object.entries(order.require).map(([k,v]) => {
+          const have = storage.goods[k] || 0;
+          const diff = v - have;
+          return diff > 0 ? `${goodsName(k)} x${diff}` : null;
+        }).filter(Boolean);
+        if (missing.length) {
+          const missLine = document.createElement('div');
+          missLine.className = 'muted';
+          missLine.textContent = `缺少：${missing.join('，')}`;
+          card.appendChild(missLine);
+        }
+      }
+
+      const btn = document.createElement('button');
+      btn.className = can ? 'btn small primary full' : 'btn small full';
+      btn.textContent = can ? '交付订单' : '库存不足';
+      btn.disabled = !can;
+      btn.onclick = () => deliverOrder(order.id);
+      card.appendChild(btn);
+
+      wrap.appendChild(card);
+    });
+  }
+
+  
+// 替换后的：显示当前声望与声望等级
+
+  // 替换后的：显示当前声望与声望等级
+  function renderReputation() {
+    const level = getReputationLevel();
+    const rep = playerStats.reputation || 0;
+
+    let levelText;
+    switch (level) {
+      case 0:
+        levelText = '0级·无名农夫';
+        break;
+      case 1:
+        levelText = '1级·小有名气';
+        break;
+      case 2:
+        levelText = '2级·远近闻名';
+        break;
+      default:
+        levelText = '3级·传说农场主';
+        break;
+    }
+
+    const text = `声望值 ${rep}，${levelText}`;
+    const el = document.getElementById('reputationInfo');
+    if (el) el.textContent = text;
+
+    // perk: 显示已获得的天赋
+    const perksEl = document.getElementById('reputationPerks');
+    if (perksEl) {
+      const perks = playerStats.perks || [];
+      if (!perks.length) {
+        perksEl.textContent = '已获得天赋：无';
+      } else {
+        const names = perks
+          .map(id => PERKS[id])
+          .filter(Boolean)
+          .map(p => p.name);
+        perksEl.textContent = '已获得天赋：' + names.join('，');
+      }
+    }
+  }
+
+
+// 替换后的：成就逻辑 + 文字展示
+function updateAchievements() {
+  const summary = document.getElementById('achievements');
+  const details = document.getElementById('achievementDetails');
+  if (!summary || !details) return;
+
+  if (!achievementsState.claimed) achievementsState.claimed = {};
+
+  let completed = 0;
+  const lines = [];
+  const rewarded = [];
+
+  achievementsConfig.forEach(cfg => {
+    const done = cfg.isCompleted(achievementsState);
+    if (done) completed += 1;
+
+    let extra = '';
+    if (cfg.id === 'new_farmer') {
+      extra = `（当前收获次数：${achievementsState.harvestCount}）`;
+    } else if (cfg.id === 'order_master') {
+      extra = `（当前已完成订单：${achievementsState.ordersDone}）`;
+    } else if (cfg.id === 'high_recipe' && achievementsState.highRecipe) {
+      extra = '（已制作过高级配方）';
+    }
+
+    const mark = done ? '✓' : '…';
+    lines.push(
+      `<div class="list-line muted"><span>[${mark}] ${cfg.name}：${cfg.desc}${extra}</span></div>`
+    );
+
+    // 首次完成时发放奖励
+    if (done && !achievementsState.claimed[cfg.id]) {
+      const reward = achievementRewards[cfg.id];
+      achievementsState.claimed[cfg.id] = true;
+      if (reward) {
+        gold += reward.gold || 0;
+        addReputation(reward.reputation || 0);
+        rewarded.push({ name: cfg.name, reward });
+      }
+    }
+  });
+
+  // 顶部概览
+  summary.textContent = `已完成 ${completed} / ${achievementsConfig.length}`;
+  // 详细列表
+  details.innerHTML = lines.join('');
+
+  // 有新成就完成时提示
+  if (rewarded.length) {
+    const msg = rewarded
+      .map(r => {
+        const parts = [];
+        if (r.reward.gold) parts.push(`金币 +${r.reward.gold}`);
+        if (r.reward.reputation) parts.push(`声望 +${r.reward.reputation}`);
+        return `${r.name}（${parts.join('，')}）`;
+      })
+      .join('；');
+    tip(`成就达成！${msg}`);
+    showToast(`成就达成！${msg}`);
+  }
+
+  // 成就会影响土地小装饰皮肤
+  refreshAllTileSkins();
+}
+
+function renderDailyQuest() {
+    const wrap = document.getElementById('dailyQuest');
+    if (!wrap) return;
+    if (!dailyQuestState) {
+      wrap.textContent = '等待刷新任务';
+      return;
+    }
+    if (dailyQuestState.completed) {
+      wrap.textContent = '任务已完成，奖励已领取';
+      return;
+    }
+    const { type, target, progress, reward } = dailyQuestState;
+    const safeTarget = target || 0;
+    const cur = Math.min(progress ?? 0, safeTarget);
+    const rewardGold = reward?.gold ?? 0;
+    const rewardRep = reward?.reputation ?? 0;
+    if (type === 'harvest') {
+      wrap.textContent = `任务：收获 ${safeTarget} 次（当前 ${cur} / ${safeTarget}），奖励：金币 ${rewardGold}，声望 ${rewardRep}`;
+    } else {
+      wrap.textContent = `任务：交付 ${safeTarget} 张订单（当前 ${cur} / ${safeTarget}），奖励：金币 ${rewardGold}，声望 ${rewardRep}`;
+    }
+  }
+
+  function renderMainQuest() {
+    const el = document.getElementById('mainQuest');
+    if (!el) return;
+    if (mainQuestState.completed) {
+      el.textContent = '主线目标：已完成当前章节，敬请期待后续内容。';
+      return;
+    }
+    if (mainQuestState.step === 0) {
+      el.textContent = '主线目标：合成第一块 Lv3 土地。';
+    } else if (mainQuestState.step === 1) {
+      el.textContent = '主线目标：制作第一份面包。';
+    } else if (mainQuestState.step === 2) {
+      el.textContent = '主线目标：完成 3 张订单。';
+    } else {
+      el.textContent = '主线目标：已完成当前章节，敬请期待后续内容。';
+    }
+  }
+
+  // season: 刷新季节卡片 UI
+  function renderSeasonCard() {
+    const season = getCurrentSeason();
+    const nameEl = document.getElementById('seasonName');
+    const descEl = document.getElementById('seasonDesc');
+    if (season && nameEl) {
+      nameEl.textContent = season.name;
+    }
+    if (season && descEl) {
+      descEl.textContent = season.desc;
+    }
+  }
+
+  function renderLandInfo(idx) {
+    const el = document.getElementById('landInfo');
+    el.innerHTML = '';
+    if (idx < 0) { el.textContent = '未选择地块。'; return; }
+    const tile = grid[idx];
+    const status = document.createElement('div');
+    status.textContent = tile.locked ? '状态：已锁定' : `状态：Lv.${tile.landLevel} ${tile.landType}`;
+    el.appendChild(status);
+
+    const soil = document.createElement('div');
+    soil.className = 'muted';
+    soil.textContent = `土壤肥力 ${Math.round(tile.fertility * 100)}%`;
+    el.appendChild(soil);
+
+    if (tile.locked) {
+      const lockTip = document.createElement('div');
+      lockTip.className = 'muted';
+      lockTip.textContent = '解锁后才能种植、交换或合成。';
+      el.appendChild(lockTip);
+    } else {
+      if (tile.crop) {
+        const cfg = seeds[tile.crop.seedId];
+        const elapsed = gameTimeMinutes - tile.plantedAt;
+        const p = Math.min(1, elapsed / tile.growTime);
+        const cropInfo = document.createElement('div');
+        cropInfo.textContent = `作物：${cfg.name} | 生长 ${Math.floor(p*100)}%${tile.ready ? '（可收获）' : ''}`;
+        el.appendChild(cropInfo);
+      } else {
+        const emptyInfo = document.createElement('div');
+        emptyInfo.textContent = '作物：无';
+        el.appendChild(emptyInfo);
+      }
+    }
+
+    const btnWrap = document.createElement('div');
+    btnWrap.style.marginTop = '6px';
+    if (tile.locked) {
+      const cost = getUnlockCost();
+      const btn = document.createElement('button');
+      btn.className = 'btn small primary';
+      btn.textContent = `解锁地块（${cost} 金币）`;
+      btn.onclick = () => unlockTile(idx);
+      btnWrap.appendChild(btn);
+    } else {
+      if (tile.landLevel >= MAX_LAND_LEVEL) {
+        const maxInfo = document.createElement('div');
+        maxInfo.className = 'muted';
+        maxInfo.textContent = '已达最高等级。';
+        btnWrap.appendChild(maxInfo);
+      } else {
+        const cost = upgradeCosts[tile.landLevel];
+        const btn = document.createElement('button');
+        btn.className = 'btn small secondary';
+        btn.textContent = `升级地块（${cost} 金币）`;
+        btn.disabled = !!tile.crop || gold < cost;
+        btn.onclick = () => upgradeTile(idx);
+        btnWrap.appendChild(btn);
+        if (tile.crop) {
+          const warn = document.createElement('div');
+          warn.className = 'muted';
+          warn.textContent = '地块已有作物，请先收获或清理再升级。';
+          btnWrap.appendChild(warn);
+        }
+      }
+    }
+    el.appendChild(btnWrap);
+  }
+
+  // ========= 视觉特效 =========
+  function getTileRect(idx) {
+    const size = canvas.width / GRID_SIZE;
+    const x = (idx % GRID_SIZE) * size;
+    const y = Math.floor(idx / GRID_SIZE) * size;
+    return { x, y, size };
+  }
+
+  function getTileCenter(idx) {
+    const rect = getTileRect(idx);
+    return { x: rect.x + rect.size / 2, y: rect.y + rect.size / 2 };
+  }
+
+  function spawnFloatingTextAt(x, y, text, color) {
+    visualEffects.push({
+      type: 'floatingText',
+      x,
+      y,
+      text,
+      color,
+      startTime: Date.now(),
+      duration: 800,
+      rise: 40
+    });
+  }
+
+  function spawnFloatingTextForTile(idx, text, color) {
+    const center = getTileCenter(idx);
+    spawnFloatingTextAt(center.x, center.y, text, color);
+  }
+
+  function spawnTileFlash(idx, color) {
+    visualEffects.push({
+      type: 'tileFlash',
+      tileIndex: idx,
+      color,
+      startTime: Date.now(),
+      duration: 400
+    });
+  }
+
+  function drawTileSkin(tile, px, py, size) {
+    if (!tile.skin) return;
+
+    // 把图标画在地块右上角
+    const cx = px + size - 22;
+    const cy = py + 22;
+
+    ctx.save();
+
+    if (tile.skin === 'scarecrow') {
+      // 稻草人
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#6d4c41';
+      ctx.fillStyle = '#ffeb3b';
+
+      // 头
+      ctx.beginPath();
+      ctx.arc(cx, cy - 4, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 身体 + 手 + 腿
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + 2);
+      ctx.lineTo(cx, cy + 10);
+      ctx.moveTo(cx - 5, cy + 4);
+      ctx.lineTo(cx + 5, cy + 4);
+      ctx.moveTo(cx, cy + 10);
+      ctx.lineTo(cx - 4, cy + 16);
+      ctx.moveTo(cx, cy + 10);
+      ctx.lineTo(cx + 4, cy + 16);
+      ctx.stroke();
+
+    } else if (tile.skin === 'windmill') {
+      // 小风车
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#90a4ae';
+      ctx.fillStyle = '#ffffff';
+
+      // 小塔身
+      ctx.beginPath();
+      ctx.rect(cx - 4, cy + 2, 8, 10);
+      ctx.fill();
+      ctx.stroke();
+
+      // 中心杆 + 叶片
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 6);
+      ctx.lineTo(cx, cy + 2);
+      ctx.moveTo(cx - 6, cy - 2);
+      ctx.lineTo(cx + 6, cy - 2);
+      ctx.moveTo(cx - 4, cy - 6);
+      ctx.lineTo(cx + 4, cy + 2);
+      ctx.moveTo(cx + 4, cy - 6);
+      ctx.lineTo(cx - 4, cy + 2);
+      ctx.stroke();
+
+    } else if (tile.skin === 'flower') {
+      // 小花丛
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#ad1457';
+      ctx.fillStyle = '#ff80ab';
+
+      // 四瓣花
+      for (let i = 0; i < 4; i++) {
+        const angle = (Math.PI / 2) * i;
+        const pxPetal = cx + Math.cos(angle) * 4;
+        const pyPetal = cy + Math.sin(angle) * 4;
+        ctx.beginPath();
+        ctx.arc(pxPetal, pyPetal, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // 花心
+      ctx.fillStyle = '#ffeb3b';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  function renderCanvas() {
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+    const size = canvas.width / GRID_SIZE;
+    for (let y=0; y<GRID_SIZE; y++) {
+      for (let x=0; x<GRID_SIZE; x++) {
+        const idx = y*GRID_SIZE+x;
+        const tile = grid[idx];
+        const px = x*size;
+        const py = y*size;
+        const color = tile.locked ? '#b7bec6' : landLevelToColor(tile.landLevel);
+        ctx.fillStyle = color;
+        ctx.fillRect(px+4, py+4, size-8, size-8);
+        ctx.strokeStyle = '#a98b68';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px+4, py+4, size-8, size-8);
+        if (!tile.locked) {
+          ctx.fillStyle = '#324';
+          ctx.font = '12px "Microsoft YaHei"';
+          ctx.fillText(`Lv${tile.landLevel}`, px+10, py+18);
+          if (tile.crop) {
+            const cfg = seeds[tile.crop.seedId] || { id: tile.crop.seedId, name: '未知作物' };
+            const elapsed = gameTimeMinutes - tile.plantedAt;
+            const p = Math.min(1, elapsed / tile.growTime);
+            const cropColor = CROP_PROGRESS_COLORS[cfg.id] || '#7fbf85';
+            ctx.save();
+            ctx.fillStyle = cropColor;
+            ctx.globalAlpha = tile.ready ? 0.9 : 0.72;
+            ctx.fillRect(px+14, py+14, size-28, (size-28)*p);
+            ctx.restore();
+            ctx.fillStyle = '#324';
+            ctx.font = '12px "Microsoft YaHei"';
+            ctx.fillText(cfg.name, px+10, py + size - 14);
+            if (tile.ready) {
+              ctx.strokeStyle = '#f5c542';
+              ctx.lineWidth = 5;
+              ctx.strokeRect(px+2, py+2, size-4, size-4);
+              ctx.strokeStyle = '#ffeb8a';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(px+5, py+5, size-10, size-10);
+              ctx.fillStyle = cropColor;
+              ctx.beginPath();
+              ctx.arc(px + size - 14, py + 14, 10, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.fillStyle = '#2f3b4a';
+              ctx.font = '12px "Microsoft YaHei"';
+              ctx.fillText('✔', px + size - 19, py + 19);
+            }
+          }
+        } else {
+          ctx.fillStyle = '#fff';
+          ctx.font = '14px "Microsoft YaHei"';
+          ctx.fillText('锁定', px + size/2 - 16, py + size/2 + 4);
+        }
+        if (idx === selectedTile) {
+          ctx.strokeStyle = '#5a9cec';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(px+6, py+6, size-12, size-12);
+        }
+        drawTileSkin(tile, px, py, size);
+      }
+    }
+
+    const now = Date.now();
+    const nextEffects = [];
+    visualEffects.forEach(effect => {
+      const t = (now - effect.startTime) / effect.duration;
+      if (t >= 1) return;
+      if (effect.type === 'floatingText') {
+        const offsetY = -effect.rise * t;
+        const alpha = 1 - t;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = effect.color;
+        ctx.font = '14px "Microsoft YaHei"';
+        ctx.fillText(effect.text, effect.x, effect.y + offsetY);
+        ctx.restore();
+      } else if (effect.type === 'tileFlash') {
+        const rect = getTileRect(effect.tileIndex);
+        const alpha = 1 - t;
+        const pulse = 1 + 0.3 * Math.sin(t * Math.PI * 3);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = effect.color;
+        ctx.lineWidth = 4 * pulse;
+        ctx.strokeRect(rect.x + 4, rect.y + 4, rect.size - 8, rect.size - 8);
+        ctx.restore();
+      }
+      nextEffects.push(effect);
+    });
+    visualEffects = nextEffects;
+  }
+
+  function updateTime() {
+    const day = Math.floor(gameTimeMinutes / DAY_MINUTES) + 1;
+    const dayMinutes = Math.floor(gameTimeMinutes % DAY_MINUTES);
+    const h = Math.floor(dayMinutes / 60).toString().padStart(2,'0');
+    const m = Math.floor(dayMinutes % 60).toString().padStart(2,'0');
+    document.getElementById('timeInfo').textContent = `第${day}天 ${h}:${m}`;
+    if (day !== lastGameDay) { onNewGameDay(day); lastGameDay = day; }
+  }
+
+  function updateUI() {
+    document.getElementById('goldDisplay').textContent = gold;
+    document.getElementById('tipMessage').textContent = tipMessage;
+    renderInventory();
+    renderStorage();
+    renderMarket();
+    renderProcessing();
+    renderOrders();
+    renderReputation();
+    updateFarmStats();
+    renderLandInfo(selectedTile);
+    updateTime();
+    updateAchievements();
+    renderDailyQuest();
+    renderMainQuest();
+    renderSeasonCard(); // season: 更新季节显示
+    renderCanvas();
+  }
+
+  // ========= 交互 =========
+  function setMode(m) {
+    mode = m;
+    document.getElementById('modeNormal').classList.remove('primary');
+    document.getElementById('modeSwap').classList.remove('primary');
+    if (m === 'normal') document.getElementById('modeNormal').classList.add('primary');
+    if (m === 'swap') document.getElementById('modeSwap').classList.add('primary');
+    tip(`已切换到${m==='normal'?'正常':'交换'}模式`);
+    swapSelection = [];
+  }
+
+  function handleTileClick(idx) {
+    selectedTile = idx;
+    const tile = grid[idx];
+
+    if (mode === 'swap') {
+      if (tile.locked) { tip('锁定地块无法交换。'); swapSelection = []; renderUIQuick(); return; }
+      swapSelection.push(idx);
+      if (swapSelection.length === 2) {
+        swapTiles(swapSelection[0], swapSelection[1]);
+        swapSelection = [];
+      } else {
+        tip('请选择另一块已解锁地块进行交换。');
+      }
+      renderUIQuick();
+      return;
+    }
+
+    if (tile.locked) {
+      unlockTile(idx);
+      renderUIQuick();
+      return;
+    }
+
+    if (!tile.crop) {
+      plantCrop(idx);
+    } else if (tile.ready) {
+      harvestCrop(idx);
+    } else {
+      tip('作物未成熟');
+    }
+    renderUIQuick();
+  }
+
+  function plantCrop(idx) {
+    if (!selectedSeed) { tip('请选择种子'); return; }
+    if ((inventory[selectedSeed] || 0) <= 0) { tip('种子不足，去商店补货'); return; }
+    const tile = grid[idx];
+    if (tile.locked) { tip('锁定地块无法种植或交换。'); return; }
+    if (tile.crop) { tip('该地块已有作物'); return; }
+    const cfg = seeds[selectedSeed];
+    tile.crop = { seedId: selectedSeed };
+    tile.plantedAt = gameTimeMinutes;
+    tile.growTime = calcGrowTimeForTile(cfg, tile); // season: 使用季节公式
+    tile.ready = false;
+    inventory[selectedSeed] -= 1;
+    tip(`种下了 ${cfg.name}`);
+    renderUIQuick();
+  }
+
+  function harvestCrop(idx) {
+    const tile = grid[idx];
+    if (!tile.crop || !tile.ready) {
+      tip('尚未成熟');
+      return;
+    }
+
+    const cfg = seeds[tile.crop.seedId];
+    let yieldCount = randInt(cfg.yield[0], cfg.yield[1]);
+
+    // perk: 丰收田天赋，增加产量
+    if (globalModifiers.yieldBonus > 0) {
+      yieldCount = Math.max(1, Math.round(yieldCount * (1 + globalModifiers.yieldBonus)));
+    }
+    const rawId = harvestRawMap[cfg.id];
+    const baseGold = Math.round(cfg.basePrice * 0.5 * yieldCount);
+
+    // 记录“待决策”的收获信息，不立即修改仓库和金币
+    openHarvestDecisionPanel({
+      tileIndex: idx,
+      seedId: cfg.id,
+      cropName: cfg.name,
+      yieldCount: yieldCount,
+      rawId: rawId,
+      baseGold: baseGold
+    });
+  }
+
+  function swapTiles(a, b) {
+    if (grid[a].locked || grid[b].locked) { tip('锁定地块无法交换。'); return; }
+    const ca = grid[a].crop;
+    const cb = grid[b].crop;
+    grid[a].crop = cb;
+    grid[b].crop = ca;
+    tip('已交换两块地的作物');
+    renderUIQuick();
+  }
+
+  function boostTile() {
+    if (selectedTile < 0) { tip('请选择地块'); return; }
+    const tile = grid[selectedTile];
+    if (tile.locked) { tip('锁定地块无法加速。'); return; }
+    if (!tile.crop) { tip('该地块没有作物'); return; }
+    tile.growTime = Math.max(30, Math.round(tile.growTime * 0.9));
+    tip('施肥成功，生长时间减少 10%');
+    renderUIQuick();
+  }
+
+  function cleanTile() {
+    if (selectedTile < 0) { tip('请选择地块'); return; }
+    const tile = grid[selectedTile];
+    if (tile.locked) { tip('锁定地块无法清理。'); return; }
+    tile.crop = null;
+    tile.ready = false;
+    tip('已清理该地块');
+    checkAutoMerge(selectedTile);
+  }
+
+  function buySeed(id) {
+    const cfg = seeds[id];
+    if (gold < cfg.cost) { tip('金币不足'); return; }
+    gold -= cfg.cost;
+    inventory[id] = (inventory[id] || 0) + 1;
+    tip(`购买 ${cfg.name} 成功`);
+    renderUIQuick();
+  }
+
+  // ========= 地块解锁/升级/自动合成 =========
+  function getUnlockCost() {
+    const unlockedCount = grid.filter(t => !t.locked).length;
+    const base = BALANCE_CONFIG.unlockBaseCost;
+    const step = BALANCE_CONFIG.unlockCostStep;
+    const extra = Math.max(0, unlockedCount - 5) * BALANCE_CONFIG.unlockCostRamp;
+    return base + unlockedCount * step + extra;
+  }
+
+  function unlockTile(idx) {
+    const tile = grid[idx];
+    if (!tile.locked) { tip('该地块已解锁。'); return; }
+    const cost = getUnlockCost();
+    tip(`该地块已锁定，花费 ${cost} 金币解锁？`);
+    if (gold < cost) { tip(`该地块已锁定，花费 ${cost} 金币解锁？金币不足。`); return; }
+    if (!confirm(`花费 ${cost} 金币解锁该地块？`)) { tip('已取消解锁'); return; }
+    gold -= cost;
+    tile.locked = false;
+    updateTileLevel(tile, 1);
+    tile.crop = null;
+    tile.ready = false;
+    tile.plantedAt = 0;
+    tip(`解锁成功：花费 ${cost} 金币。`);
+    spawnTileFlash(idx, '#fff176');
+    spawnFloatingTextForTile(idx, '新地块！', '#fff176');
+    checkAutoMerge(idx, false, 2);
+    updateMainQuestProgress();
+  }
+
+  function upgradeTile(idx) {
+    const tile = grid[idx];
+    if (tile.locked) { tip('请先解锁地块。'); return; }
+    if (tile.crop) { tip('地块已有作物，请先收获或清理再升级。'); return; }
+    if (tile.landLevel >= MAX_LAND_LEVEL) { tip('已达最高等级。'); return; }
+    const oldLevel = tile.landLevel;
+    const cost = upgradeCosts[tile.landLevel];
+    if (gold < cost) { tip('金币不足，无法升级。'); return; }
+    gold -= cost;
+    updateTileLevel(tile, Math.min(MAX_LAND_LEVEL, oldLevel + 1));
+    spawnTileFlash(idx, '#ffd54f');
+    spawnFloatingTextForTile(idx, `Lv${oldLevel} → Lv${tile.landLevel}`, '#ffd54f');
+    tip(`升级成功，当前 Lv.${tile.landLevel}`);
+    checkAutoMerge(idx);
+  }
+
+  // 现在规则：只有 2 级及以上土地会参与自动合成，1 级永远不会参与
+  function checkAutoMerge(changedIdx = null, allowEmptyMerge = true) {
+    if (!allowEmptyMerge && grid.every(t => !t.crop)) {
+      updateMainQuestProgress();
+      return;
+    }
+
+    let merged;
+    do {
+      merged = false;
+
+      // ⭐ 固定从 Level=2 开始检查，Lv1 不会被用于自动合成
+      for (let level = 2; level < MAX_LAND_LEVEL; level++) {
+        const indices = [];
+        grid.forEach((t, i) => {
+          if (!t.locked && t.landLevel === level) indices.push(i);
+        });
+
+        // 只拿“没有作物”的地块作为合成对象
+        const available = indices.filter(i => !grid[i].crop);
+        if (available.length >= 3) {
+          const target = (changedIdx !== null && available.includes(changedIdx))
+            ? changedIdx
+            : available[0];
+          const others = available.filter(i => i !== target).slice(0, 2);
+
+          // 目标地块升级
+          updateTileLevel(grid[target], Math.min(MAX_LAND_LEVEL, level + 1));
+          grid[target].crop = null;
+          grid[target].ready = false;
+          grid[target].plantedAt = 0;
+
+          // 其余两块恢复为 Lv1（基础田），但 Lv1 不会再参与任何自动合成
+          others.forEach(i => {
+            updateTileLevel(grid[i], 1);
+            grid[i].crop = null;
+            grid[i].ready = false;
+            grid[i].plantedAt = 0;
+          });
+
+          tip(`自动合成：Lv${level} -> Lv${level + 1}`);
+          changedIdx = target;
+          merged = true;
+          break;
+        }
+      }
+    } while (merged);
+
+    updateMainQuestProgress();
+    renderUIQuick();
+  }
+
+  // ========= 加工位扩展配置 =========
+  const PROCESS_SLOT_MAX = 3;              // 最多 3 个加工位
+  const PROCESS_SLOT_BASE_COST = 120;      // 第二个加工位价格
+  const PROCESS_SLOT_COST_STEP = 80;       // 后续每个加工位递增价格
+
+  function getNextProcessSlotCost() {
+    // 当前已经有 maxProcessingSlots 个，下一位的价格基于此计算
+    // 第一个位是默认免费（maxProcessingSlots 从 1 起）
+    if (maxProcessingSlots >= PROCESS_SLOT_MAX) return 0;
+    return PROCESS_SLOT_BASE_COST + (maxProcessingSlots - 1) * PROCESS_SLOT_COST_STEP;
+  }
+
+  function buyProcessSlot() {
+    if (maxProcessingSlots >= PROCESS_SLOT_MAX) {
+      tip('加工位已经全部解锁。');
+      showToast('加工位已经全部解锁。');
+      return;
+    }
+    const cost = getNextProcessSlotCost();
+    if (gold < cost) {
+      tip('金币不足，无法购买新的加工位。');
+      showToast('金币不足，无法购买新的加工位。');
+      return;
+    }
+    gold -= cost;
+    maxProcessingSlots += 1;
+    tip('已解锁新的加工位，现在可同时加工 ' + maxProcessingSlots + ' 批。');
+    showToast('解锁加工位成功！当前加工位：' + maxProcessingSlots);
+    renderUIQuick();
+  }
+
+  // ========= 加工 =========
+  function hasInput(input) { return Object.entries(input).every(([k,v]) => (storage.raw[k] || 0) >= v); }
+
+  function startProcessing(recipeId) {
+    const recipe = processingRecipes[recipeId];
+    if (!recipe) {
+      tip('未知配方，无法加工。');
+      return;
+    }
+
+    if (processingSlots.length >= maxProcessingSlots) {
+      tip('车间加工位已满，请等待当前加工完成。');
+      showToast('加工位已满');
+      return;
+    }
+
+    const level = getReputationLevel();
+    if (level < recipe.unlockLevel) {
+      tip('声望不足，无法制作');
+      return;
+    }
+    if (!hasInput(recipe.input)) {
+      tip('原料不足');
+      return;
+    }
+
+    Object.entries(recipe.input).forEach(function ([k, v]) {
+      storage.raw[k] -= v;
+    });
+
+    processingSlots.push({
+      recipeId: recipe.id,
+      startedAt: gameTimeMinutes,
+      timeTotal: recipe.timeMinutes
+    });
+
+    const hours = (recipe.timeMinutes / 60).toFixed(1);
+    tip('开始制作 ' + recipe.name + '，预计 ' + hours + ' 小时完成');
+    renderUIQuick();
+  }
+
+  // 检查当前是否有订单需要某个成品，并给出提示
+  function hintOrderForGoods(goodsId) {
+    if (!activeOrders || !activeOrders.length) return;
+
+    const hasOrder = activeOrders.some(function (o) {
+      return (
+        o.status === 'pending' &&
+        o.require &&
+        o.require[goodsId] &&
+        o.require[goodsId] > 0
+      );
+    });
+
+    if (!hasOrder) return;
+
+    const msg =
+      '有订单正好需要 ' + goodsName(goodsId) + '，可以去「订单」面板看看。';
+    tip(msg);
+    showToast(msg);
+  }
+
+  function updateProcessing(deltaMinutes) {
+    if (!processingSlots.length) return;
+
+    const finishedIndexes = [];
+
+    processingSlots.forEach(function (slot, index) {
+      if (!slot) return;
+      if (gameTimeMinutes - slot.startedAt < slot.timeTotal) return;
+
+      const recipe = processingRecipes[slot.recipeId];
+      if (!recipe) {
+        finishedIndexes.push(index);
+        return;
+      }
+
+      // 记录本次产出的成品 ID（用于后续订单提示）
+      const producedGoods = [];
+
+      Object.entries(recipe.output).forEach(function ([k, v]) {
+        storage.goods[k] = (storage.goods[k] || 0) + v;
+        producedGoods.push(k);
+      });
+
+      tip('加工完成：' + recipe.name);
+      showToast('加工完成：' + recipe.name);
+
+      if (recipe.id === 'pumpkin_pie') {
+        achievementsState.highRecipe = true;
+        updateAchievements();
+      }
+      if (recipe.id === 'bread') {
+        updateMainQuestProgress('bread');
+      }
+
+      producedGoods.forEach(function (gid) { hintOrderForGoods(gid); });
+
+      finishedIndexes.push(index);
+    });
+
+    // 从后往前删除已完成的加工位，避免 index 混乱
+    finishedIndexes
+      .sort(function (a, b) { return b - a; })
+      .forEach(function (i) {
+        processingSlots.splice(i, 1);
+      });
+  }
+
+  // ========= 市场 =========
+  function refreshMarketPrices(day) {
+    marketPriceModifier = { ...MARKET_PRICE_TEMPLATE, ...marketPriceModifier };
+    Object.keys(marketPriceModifier).forEach(key => {
+      marketPriceModifier[key] = Number((0.9 + Math.random() * 0.3).toFixed(2));
+    });
+    renderMarket();
+  }
+
+  function sellItem(kind, id) {
+    const store = kind === 'raw' ? storage.raw : storage.goods;
+    const name = kind === 'raw' ? rawName(id) : goodsName(id);
+    const count = store[id] || 0;
+    if (count <= 0) { tip('没有可出售的库存。'); showToast('没有可出售的库存。'); return; }
+    const unitPrice = getMarketPrice(kind, id);
+    const gain = unitPrice * count;
+    store[id] = 0;
+    gold += gain;
+    tip(`出售${name} ${count} ${kind === 'goods' ? '份' : '个'}，获得 ${gain} 金币。`);
+    showToast(`出售${name} ${count} ${kind === 'goods' ? '份' : '个'}，获得 ${gain} 金币。`);
+    renderUIQuick();
+  }
+
+  // ========= 订单 =========
+  function rawName(id) {
+    return {
+      wheat: '小麦',
+      corn: '玉米',
+      pumpkin: '南瓜',
+      radish: '萝卜',       // new
+      strawberry: '草莓'    // new
+    }[id] || id;
+  }
+  function goodsName(id) {
+    return {
+      bread: '面包',
+      popcorn: '爆米花',
+      pumpkin_pie: '南瓜派',
+      radish_pickles: '腌萝卜', // new
+      berry_jam: '草莓酱'       // new
+    }[id] || id;
+  }
+  function getMarketPrice(kind, id) {
+    const map = kind === 'raw' ? RAW_SELL_PRICES : GOODS_SELL_PRICES;
+    const base = map[id] || 0;
+    const modifier = marketPriceModifier[id] != null ? marketPriceModifier[id] : 1;
+
+    // season: 根据季节调整价格
+    const season = getCurrentSeason();
+    let seasonFactor = 1;
+    if (season) {
+      if (kind === 'raw') {
+        seasonFactor = season.priceFactorRaw || 1;
+      } else {
+        seasonFactor = season.priceFactorGoods || 1;
+      }
+    }
+
+    return Math.max(1, Math.round(base * modifier * seasonFactor));
+  }
+  function canDeliver(order) { return Object.entries(order.require).every(([k,v]) => (storage.goods[k] || 0) >= v); }
+
+  function deliverOrder(orderId) {
+    const order = activeOrders.find(o => o.id === orderId && o.status === 'pending');
+    if (!order) { tip('订单不存在'); return; }
+    if (!canDeliver(order)) { tip('成品不足，无法交付'); return; }
+    Object.entries(order.require).forEach(([k,v]) => storage.goods[k] -= v);
+    gold += order.reward.gold;
+    addReputation(order.reward.reputation);
+    if (order.reward.seeds) inventory[order.reward.seeds] = (inventory[order.reward.seeds]||0) + 1;
+    order.status = 'completed';
+    achievementsState.ordersDone += 1;
+    updateAchievements();
+    if (dailyQuestState && !dailyQuestState.completed && dailyQuestState.type === 'orders') {
+      dailyQuestState.progress = Math.min(dailyQuestState.target, dailyQuestState.progress + 1);
+      checkDailyQuestCompletion();
+    }
+    updateMainQuestProgress('order');
+    tip('订单已完成，获得奖励');
+    showToast('订单交付成功');
+    renderUIQuick();
+  }
+
+  function generateDailyQuest(day) {
+    const type = Math.random() < 0.5 ? 'harvest' : 'orders';
+    let target;
+    let rewardGold;
+    if (type === 'harvest') {
+      target = Math.min(10, randInt(3,7) + Math.floor(day/6));
+      rewardGold = Math.min(80, Math.max(40, 35 + target * 7));
+    } else {
+      target = Math.min(5, randInt(1,3) + Math.floor(day/8));
+      rewardGold = Math.min(80, Math.max(40, 45 + target * 12));
+    }
+    return { day, type, target, progress: 0, reward: { gold: rewardGold, reputation: 1 }, completed: false };
+  }
+
+  function checkDailyQuestCompletion() {
+    if (dailyQuestState && !dailyQuestState.completed && dailyQuestState.progress >= dailyQuestState.target) {
+      dailyQuestState.completed = true;
+      gold += dailyQuestState.reward.gold;
+      addReputation(dailyQuestState.reward.reputation);
+      const rewardMsg = `今日任务完成！获得金币 ${dailyQuestState.reward.gold}，声望 ${dailyQuestState.reward.reputation}`;
+      tip(rewardMsg);
+      showToast(rewardMsg);
+    }
+    renderDailyQuest();
+  }
+
+  function updateMainQuestProgress(trigger = '') {
+    if (mainQuestState.completed) return;
+    if (mainQuestState.step === 0) {
+      const hasHighLand = grid.some(t => !t.locked && t.landLevel >= 3);
+      if (hasHighLand) { mainQuestState.step = 1; renderMainQuest(); }
+    }
+    if (mainQuestState.step === 1 && trigger === 'bread') {
+      mainQuestState.step = 2;
+      renderMainQuest();
+    }
+    if (mainQuestState.step === 2 && achievementsState.ordersDone >= 3) {
+      mainQuestState.completed = true;
+      renderMainQuest();
+    }
+  }
+
+  function onNewGameDay(day) {
+    activeOrders.forEach(o => { if (o.status === 'pending' && day > o.deadlineDay) o.status = 'expired'; });
+    const maxOrders = MAX_ORDERS_BASE + getReputationLevel();
+    const pending = activeOrders.filter(o => o.status === 'pending');
+    const need = Math.max(0, maxOrders - pending.length);
+    for (let i=0; i<need; i++) { activeOrders.push(generateRandomOrder(day)); }
+    dailyQuestState = generateDailyQuest(day);
+    renderDailyQuest();
+    refreshMarketPrices(day);
+    tip(`新的一天（第${day}天），刷新了 ${need} 张订单，市场行情已更新`);
+
+    // season: 更新季节，并在季节变化时提示
+    const beforeIndex = currentSeasonIndex;
+    updateSeasonByGameTime();
+    if (currentSeasonIndex !== beforeIndex) {
+      const s = getCurrentSeason();
+      if (s) {
+        tip("季节变化：进入" + s.name + "。" + s.desc);
+        showToast("季节变化：" + s.name);
+      }
+    }
+    renderSeasonCard();
+  }
+
+  function generateRandomOrder(day) {
+    const goodsPool = ['bread', 'popcorn', 'radish_pickles']; // new
+    const repLevel = getReputationLevel();
+    if (repLevel >= 1) goodsPool.push('berry_jam');          // new
+    if (repLevel >= 2) goodsPool.push('pumpkin_pie');
+    const gid = goodsPool[Math.floor(Math.random()*goodsPool.length)];
+    const count = Math.max(1, Math.min(4, Math.floor(day/3)+1));
+    const baseGold = goodsPrices[gid] || 25;
+    const goldReward = baseGold * count + getReputationLevel()*3;
+    const rep = 1 + (getReputationLevel() >=2 ? 1 : 0);
+    const seedReward = Math.random() < 0.25 ? 'basic_wheat' : null;
+    return {
+      id: 'order_'+Date.now()+Math.random().toString(16).slice(2,6),
+      title: '村民订单',
+      description: `需要 ${goodsName(gid)} x${count}`,
+      require: { [gid]: count },
+      reward: { gold: goldReward, reputation: rep, seeds: seedReward },
+      deadlineDay: day + 2,
+      status: 'pending'
+    };
+  }
+
+  // ========= 声望 =========
+
+
+  // perk: 根据天赋效果叠加到全局修正系数
+  function applyPerk(perk) {
+    if (!perk || !perk.effect) return;
+    globalModifiers.yieldBonus += perk.effect.yieldBonus || 0;
+  }
+
+  // perk: 从 playerStats.perks 重新计算 globalModifiers（读档/新建时用）
+  function recomputeGlobalModifiers() {
+    globalModifiers = {
+      yieldBonus: 0
+    };
+    const list = playerStats.perks || []; 
+    list.forEach(id => {
+      const perk = PERKS[id];
+      if (perk) applyPerk(perk);
+    });
+  }
+
+  // perk: 统一入口，增加声望并检测升级
+  function addReputation(amount) {
+    if (!amount) return;
+    const prevLevel = getReputationLevel();
+    playerStats.reputation = (playerStats.reputation || 0) + amount;
+    if (playerStats.reputation < 0) playerStats.reputation = 0;
+    const newLevel = getReputationLevel();
+
+    if (newLevel > prevLevel) {
+      handleReputationLevelUp(prevLevel, newLevel);
+    }
+  }
+
+  // perk: 声望等级提升后，依次处理每一级
+  function handleReputationLevelUp(prevLevel, newLevel) {
+    for (let lvl = prevLevel + 1; lvl <= newLevel; lvl++) {
+      offerPerkChoiceForLevel(lvl);
+    }
+  }
+
+  // perk: 当前版本只在 1 级时提供“丰收田”天赋
+  function offerPerkChoiceForLevel(level) {
+    playerStats.perks = playerStats.perks || [];
+
+    // 规则：从 0→1 级且尚无天赋时赠送
+    if (level === 1 && playerStats.perks.length === 0) {
+      const perk = PERKS.moreYield; 
+      if (perk && !playerStats.perks.includes(perk.id)) {
+        playerStats.perks.push(perk.id);
+        applyPerk(perk);
+        tip('声望达到 1 级，获得天赋【' + perk.name + '】');
+        showToast('获得天赋【' + perk.name + '】');
+      }
+    }
+
+    // 预留：以后可以在更高等级增加更多天赋选择逻辑
+  }
+
+  function getReputationLevel() {
+    const rep = playerStats.reputation || 0;
+    if (rep >= 15) return 3;
+    if (rep >= 7) return 2;
+    if (rep >= 3) return 1;
+    return 0;
+  }
+
+  // ========= 游戏循环 =========
+  function gameLoop() {
+    const now = Date.now();
+    const delta = now - lastTick;
+    lastTick = now;
+    const deltaMinutes = (delta / 1000) * TIME_SPEED;
+    gameTimeMinutes += deltaMinutes;
+    updateFarmCrops();
+    updateProcessing(deltaMinutes);
+    updateUI();
+  }
+
+  function updateFarmCrops() {
+    grid.forEach(tile => {
+      if (tile.crop && !tile.ready) {
+        const elapsed = gameTimeMinutes - tile.plantedAt;
+        if (elapsed >= tile.growTime) { tile.ready = true; }
+      }
+    });
+    const readyCount = grid.filter(t => t.ready).length;
+    if (readyCount !== lastReadyCount) {
+      lastReadyCount = readyCount;
+      if (readyCount > 0) {
+        tip(`已有 ${readyCount} 块土地的作物成熟了，点击对应地块即可收获。`);
+      }
+    }
+  }
+
+  function animationLoop() {
+    renderCanvas();
+    requestAnimationFrame(animationLoop);
+  }
+
+  // ========= 存档 / 读档 =========
+  function saveGame() {
+    const account = getCurrentAccount();
+    if (!account) { tip('请先输入账号名'); return; }
+    const data = {
+      gold,
+      gameTimeMinutes,
+      grid,
+      inventory,
+      storage,
+      processingSlots,
+      maxProcessingSlots,
+      activeOrders,
+      lastGameDay,
+      playerStats,
+      globalModifiers,
+      achievementsState,
+      dailyQuestState,
+      mainQuestState,
+      selectedSeed,
+      mode,
+      marketPriceModifier
+    };
+    localStorage.setItem('farm_save_'+account, JSON.stringify(data));
+    tip('已保存');
+    showToast('存档成功');
+    addAccountIfNotExists(account);
+  }
+
+  function normalizeGridAfterLoad() {
+    const typeToLevel = {}; Object.entries(LAND_LEVEL_CONFIG).forEach(([lvl, cfg]) => { typeToLevel[cfg.type] = Number(lvl); });
+    grid = (grid || []).map(t => {
+      const tile = createTile(true, 1);
+      Object.assign(tile, t);
+      if (tile.skin === undefined) tile.skin = null;
+      if (tile.locked === undefined) tile.locked = false;
+      const level = tile.landLevel || typeToLevel[tile.land] || 1;
+      updateTileLevel(tile, level);
+      return tile;
+    });
+    while (grid.length < GRID_SIZE * GRID_SIZE) grid.push(createTile(true, 1));
+    grid = grid.slice(0, GRID_SIZE * GRID_SIZE);
+  }
+
+  function loadGame() {
+    const account = getCurrentAccount();
+    if (!account) { tip('请先输入账号名'); return; }
+    const raw = localStorage.getItem('farm_save_'+account);
+    if (!raw) { tip('未找到存档'); return; }
+    try {
+      const data = JSON.parse(raw);
+      gold = data.gold ?? gold;
+      gameTimeMinutes = data.gameTimeMinutes ?? 0;
+      updateSeasonByGameTime();
+      renderSeasonCard();
+      grid = data.grid ?? grid;
+      normalizeGridAfterLoad();
+      inventory = data.inventory ?? inventory;
+      inventory.fast_radish = inventory.fast_radish || 0; // new seed default
+      inventory.berry = inventory.berry || 0;             // new seed default
+      storage = data.storage ?? storage;
+      storage.raw = {
+        wheat: 0,
+        corn: 0,
+        pumpkin: 0,
+        radish: 0,      // new raw
+        strawberry: 0,  // new raw
+        ...(storage.raw || {})
+      };
+      storage.goods = {
+        bread: 0,
+        popcorn: 0,
+        pumpkin_pie: 0,
+        radish_pickles: 0, // new product
+        berry_jam: 0,      // new product
+        ...(storage.goods || {})
+      };
+      marketPriceModifier = { ...MARKET_PRICE_TEMPLATE, ...(data.marketPriceModifier || {}) };
+      if (!data.marketPriceModifier) refreshMarketPrices(Math.floor(gameTimeMinutes / DAY_MINUTES) + 1);
+      processingSlots = data.processingSlots ?? [];
+      maxProcessingSlots = data.maxProcessingSlots ?? 1;
+
+      // 向下兼容旧存档：旧版本只有 processingSlot
+      if (!processingSlots.length && data.processingSlot) {
+        processingSlots = [data.processingSlot];
+        if (!maxProcessingSlots || maxProcessingSlots < 1) {
+          maxProcessingSlots = 1;
+        }
+      }
+
+      activeOrders = data.activeOrders ?? [];
+      lastGameDay = data.lastGameDay ?? 1;
+      playerStats = data.playerStats ?? playerStats;
+      if (!playerStats.perks) playerStats.perks = [];
+      globalModifiers = data.globalModifiers ?? globalModifiers;
+      recomputeGlobalModifiers();
+    achievementsState = data.achievementsState ?? achievementsState;
+    if (!achievementsState.claimed) achievementsState.claimed = {};
+      dailyQuestState = data.dailyQuestState ?? dailyQuestState;
+      mainQuestState = data.mainQuestState ?? mainQuestState;
+      if (!dailyQuestState) dailyQuestState = generateDailyQuest(Math.floor(gameTimeMinutes / DAY_MINUTES) + 1);
+      if (!mainQuestState || mainQuestState.step === undefined) mainQuestState = { step: 0, completed: false };
+      selectedSeed = data.selectedSeed ?? '';
+      mode = data.mode ?? 'normal';
+      if (mode !== 'normal' && mode !== 'swap') mode = 'normal';
+      tip('存档已加载');
+      renderSeedSelect();
+      setMode(mode);
+      updateMainQuestProgress();
+      updateAchievements();
+      renderDailyQuest();
+      renderMainQuest();
+      renderUIQuick();
+    } catch (e) {
+      tip('存档读取失败');
+      console.error(e);
+    }
+  }
+
+  function getCurrentAccount() {
+    const input = document.getElementById('accountName');
+    const name = input.value.trim();
+    const sel = document.getElementById('accountSelect');
+    return name || sel.value || '';
+  }
+
+  function createAccount() {
+    const name = document.getElementById('accountName').value.trim();
+    if (!name) { tip('请输入账号名'); return; }
+    addAccountIfNotExists(name);
+    document.getElementById('accountSelect').value = name;
+    tip('已切换/创建账号：'+name);
+    initGrid();
+      gold = 300;
+      gameTimeMinutes = 0;
+      updateSeasonByGameTime();
+      renderSeasonCard();
+      inventory = {
+        basic_wheat: 2,
+        mid_corn: 0,
+        high_pumpkin: 0,
+        fast_radish: 0, // new seed
+        berry: 0        // new seed
+      };
+      storage = {
+        raw: {
+          wheat: 0,
+          corn: 0,
+          pumpkin: 0,
+          radish: 0,      // new raw
+          strawberry: 0   // new raw
+        },
+        goods: {
+          bread: 0,
+          popcorn: 0,
+          pumpkin_pie: 0,
+          radish_pickles: 0, // new product
+          berry_jam: 0       // new product
+        }
+      };
+      marketPriceModifier = { ...MARKET_PRICE_TEMPLATE };
+      processingSlots = [];
+      maxProcessingSlots = 1;
+      activeOrders = [];
+      lastGameDay = 1;
+      playerStats = { reputation: 0, perks: [] };
+      // perk: 重置天赋加成
+      globalModifiers = { yieldBonus: 0 };
+      recomputeGlobalModifiers();
+    achievementsState = { harvestCount: 0, ordersDone: 0, highRecipe: false, claimed: {} };
+    dailyQuestState = generateDailyQuest(1);
+    mainQuestState = { step: 0, completed: false };
+    selectedSeed = '';
+    mode = 'normal'; swapSelection = []; selectedTile = -1; setMode('normal');
+    refreshMarketPrices(1);
+    updateAchievements();
+    renderDailyQuest();
+    renderMainQuest();
+    renderUIQuick();
+  }
+
+  function deleteAccount() {
+    const name = getCurrentAccount();
+    if (!name) { tip('请选择账号'); return; }
+    localStorage.removeItem('farm_save_'+name);
+    removeAccountFromList(name);
+    tip('已删除账号 '+name);
+  }
+
+  function loadAccountsToSelect() {
+    const sel = document.getElementById('accountSelect');
+    const list = JSON.parse(localStorage.getItem('farm_accounts') || '[]');
+    sel.innerHTML = '';
+    list.forEach(n => { const opt = document.createElement('option'); opt.value = n; opt.textContent = n; sel.appendChild(opt); });
+    if (list[0]) sel.value = list[0];
+  }
+
+  function addAccountIfNotExists(name) {
+    const list = JSON.parse(localStorage.getItem('farm_accounts') || '[]');
+    if (!list.includes(name)) { list.push(name); localStorage.setItem('farm_accounts', JSON.stringify(list)); loadAccountsToSelect(); }
+  }
+
+  function removeAccountFromList(name) {
+    const list = JSON.parse(localStorage.getItem('farm_accounts') || '[]').filter(n => n !== name);
+    localStorage.setItem('farm_accounts', JSON.stringify(list));
+    loadAccountsToSelect();
+  }
+
+  // 初始化一个测试账号，金币 10000，其余资源 100
+  function ensureTestAccount() {
+    const testName = 'test';
+    const saveKey = 'farm_save_' + testName;
+    const accounts = JSON.parse(localStorage.getItem('farm_accounts') || '[]');
+    if (!accounts.includes(testName)) {
+      accounts.push(testName);
+      localStorage.setItem('farm_accounts', JSON.stringify(accounts));
+    }
+
+    if (!localStorage.getItem(saveKey)) {
+      const makeGrid = () => {
+        const arr = new Array(GRID_SIZE * GRID_SIZE).fill(0).map(() => createTile(true, 1));
+        for (let i = 0; i < 3; i++) {
+          arr[i].locked = false;
+          updateTileLevel(arr[i], 1);
+        }
+        return arr;
+      };
+
+        const data = {
+          gold: 10000,
+          gameTimeMinutes: 0,
+          grid: makeGrid(),
+          inventory: {
+            basic_wheat: 100,
+            mid_corn: 100,
+            high_pumpkin: 100,
+            fast_radish: 100, // new seed
+            berry: 100        // new seed
+          },
+          storage: {
+            raw: {
+              wheat: 100,
+              corn: 100,
+              pumpkin: 100,
+              radish: 100,      // new raw
+              strawberry: 100   // new raw
+            },
+            goods: {
+              bread: 100,
+              popcorn: 100,
+              pumpkin_pie: 100,
+              radish_pickles: 100, // new product
+              berry_jam: 100       // new product
+            }
+          },
+          processingSlots: [],
+          maxProcessingSlots: 1,
+          activeOrders: [],
+          lastGameDay: 1,
+          playerStats: { reputation: 0, perks: [] },
+          achievementsState: { harvestCount: 0, ordersDone: 0, highRecipe: false, claimed: {} },
+          dailyQuestState: generateDailyQuest(1),
+        mainQuestState: { step: 0, completed: false },
+        selectedSeed: '',
+        mode: 'normal',
+        marketPriceModifier: { ...MARKET_PRICE_TEMPLATE },
+        globalModifiers: { yieldBonus: 0 } // perk: ???????????
+      };
+      localStorage.setItem(saveKey, JSON.stringify(data));
+    }
+  }
+
+  // ========= 工具 =========
+  // season: 根据当前游戏天数更新季节索引
+  function updateSeasonByGameTime() {
+    const day = Math.floor(gameTimeMinutes / DAY_MINUTES) + 1;
+    const idx = Math.floor((day - 1) / SEASON_LENGTH_DAYS) % SEASONS.length;
+    currentSeasonIndex = idx;
+  }
+
+  // season: 获取当前季节配置
+  function getCurrentSeason() {
+    return SEASONS[currentSeasonIndex] || SEASONS[0];
+  }
+
+  function tip(msg) { tipMessage = msg; }
+  function renderUIQuick() { updateUI(); }
+  function showToast(msg) { const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2000); }
+  function randInt(a,b) { return Math.floor(Math.random()*(b-a+1))+a; }
+  // season: 计算某块地上某种作物的生长时间（考虑季节和地块肥力）
+  function calcGrowTimeForTile(cfg, tile) {
+    if (!cfg || !tile) return 0;
+    const season = getCurrentSeason();
+    const growFactor = season && typeof season.growFactor === 'number' ? season.growFactor : 1;
+    const fertility = tile.fertility || 1;
+    const base = cfg.growTime;
+    return Math.round(base * growFactor / fertility);
+  }
+  function updateFarmStats() {
+    const planted = grid.filter(t => !t.locked && t.crop).length;
+    const unlocked = grid.filter(t => !t.locked).length;
+    const ready = grid.filter(t => !t.locked && t.ready).length;
+    const avgFert = unlocked ? (grid.filter(t => !t.locked).reduce((sum, t) => sum + (t.fertility || 1), 0) / unlocked) : 1;
+    const bonus = Math.max(0, Math.round((avgFert - 1) * 100));
+    const plantedEl = document.getElementById('farmStatPlanted');
+    const readyEl = document.getElementById('farmStatReady');
+    const bonusEl = document.getElementById('farmStatBonus');
+    if (plantedEl) plantedEl.textContent = `${planted} / ${unlocked}`;
+    if (readyEl) readyEl.textContent = `${ready} 块`;
+    if (bonusEl) bonusEl.textContent = `+${bonus}%`;
+  }
+
+  // ========= 收获即时决策面板 =========
+
+  function openHarvestDecisionPanel(info) {
+    pendingHarvestDecision = info;
+    const panel = document.getElementById('harvestDecision');
+    const textEl = document.getElementById('harvestDecisionText');
+
+    if (!panel || !textEl) return;
+
+    // 展示简单说明：作物名 + 数量
+    textEl.textContent =
+      '收获 ' + info.cropName + '：共 ' + info.yieldCount + ' 个。请选择处理方式：';
+
+    panel.classList.remove('hidden');
+  }
+
+  function closeHarvestDecisionPanel() {
+    const panel = document.getElementById('harvestDecision');
+    if (panel) {
+      panel.classList.add('hidden');
+    }
+    pendingHarvestDecision = null;
+  }
+
+  // action: 'sell' | 'store'
+  function confirmHarvestDecision(action) {
+    if (!pendingHarvestDecision) {
+      closeHarvestDecisionPanel();
+      return;
+    }
+
+    const info = pendingHarvestDecision;
+    const tile = grid[info.tileIndex];
+    const cfg = seeds[info.seedId] || { name: info.cropName || '作物' };
+
+    if (!tile || !tile.crop || !tile.ready) {
+      // 地块状态不对，直接关闭
+      closeHarvestDecisionPanel();
+      return;
+    }
+
+    if (action === 'sell') {
+      // 直接卖掉：只给金币，不进仓
+      gold += info.baseGold;
+      spawnFloatingTextForTile(info.tileIndex, '+' + info.baseGold + ' 金币', '#ffd54f');
+      tip('收获 ' + cfg.name + ' 并直接出售，获得 ' + info.baseGold + ' 金币。');
+    } else {
+      // 入仓加工：只进仓，不给这笔即时金币
+      if (info.rawId) {
+        storage.raw[info.rawId] = (storage.raw[info.rawId] || 0) + info.yieldCount;
+        spawnFloatingTextForTile(
+          info.tileIndex,
+          '+' + info.yieldCount + ' 原料',
+          '#a5d6a7'
+        );
+      }
+      tip('收获 ' + cfg.name + '，原料 +' + info.yieldCount + '，等待后续加工。');
+    }
+
+    // 通用的收获统计和任务进度
+    achievementsState.harvestCount += 1;
+    updateAchievements();
+
+    if (dailyQuestState && !dailyQuestState.completed && dailyQuestState.type === 'harvest') {
+      dailyQuestState.progress = Math.min(
+        dailyQuestState.target,
+        dailyQuestState.progress + 1
+      );
+      checkDailyQuestCompletion();
+    }
+
+    // 清空地块作物
+    tile.crop = null;
+    tile.ready = false;
+
+    // 收获后触发自动合成逻辑（按你现在的规则：只合成 Lv2+）
+    checkAutoMerge(info.tileIndex, false);
+
+    closeHarvestDecisionPanel();
+    renderUIQuick();
+  }
+
+  // ========= 右侧标签初始化 =========
+  function initRightTabs() {
+    const buttons = document.querySelectorAll('.right-tabs-header .tab-btn');
+    const panels = document.querySelectorAll('.sidebar.right .tab-panel');
+    if (!buttons.length || !panels.length) return;
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        setRightTab(tab);
+      });
+    });
+  }
+
+  function setRightTab(tabName) {
+    const buttons = document.querySelectorAll('.right-tabs-header .tab-btn');
+    const panels = document.querySelectorAll('.sidebar.right .tab-panel');
+    if (!buttons.length || !panels.length) return;
+    buttons.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+    panels.forEach(p => {
+      p.classList.toggle('active', p.dataset.tab === tabName);
+    });
+  }
+
+  function openMarketShortcut() {
+    setRightTab('market');
+  }
+
+  function openAchievementShortcut() {
+    setRightTab('achievement');
+  }
+
+  // ========= 快捷操作 =========
+  function handleQuickHarvest() {
+    const readyList = [];
+    grid.forEach((tile, idx) => { if (!tile.locked && tile.crop && tile.ready) readyList.push(idx); });
+    if (!readyList.length) { tip('暂无成熟作物可收获'); showToast('暂无成熟作物可收获'); return; }
+    let totalGold = 0;
+    let totalCount = 0;
+    readyList.forEach(idx => {
+      const tile = grid[idx];
+      if (!tile.crop) return;
+      const cfg = seeds[tile.crop.seedId];
+      if (!cfg) { tile.crop = null; tile.ready = false; return; }
+      let yieldCount = randInt(cfg.yield[0], cfg.yield[1]);
+
+      // perk: 丰收田天赋，增加产量
+      if (globalModifiers.yieldBonus > 0) {
+        yieldCount = Math.max(1, Math.round(yieldCount * (1 + globalModifiers.yieldBonus)));
+      }
+      const rawId = harvestRawMap[cfg.id];
+      if (rawId) storage.raw[rawId] = (storage.raw[rawId] || 0) + yieldCount;
+      const baseGold = Math.round(cfg.basePrice * 0.5 * yieldCount);
+      gold += baseGold;
+      totalGold += baseGold;
+      achievementsState.harvestCount += 1;
+      if (dailyQuestState && !dailyQuestState.completed && dailyQuestState.type === 'harvest') {
+        dailyQuestState.progress = Math.min(dailyQuestState.target, dailyQuestState.progress + 1);
+      }
+      tile.crop = null;
+      tile.ready = false;
+      totalCount += 1;
+    });
+    updateAchievements();
+    checkDailyQuestCompletion();
+    lastReadyCount = grid.filter(t => t.ready).length;
+    tip(`已收获 ${totalCount} 块地，获得 ${totalGold} 金币。`);
+    showToast(`一键收获完成：+${totalGold} 金币`);
+    spawnFloatingTextAt(canvas.width / 2 - 40, canvas.height / 2, `+${totalGold} 金币`, '#ffe082');
+    checkAutoMerge();
+  }
+
+  function handleQuickPlant() {
+    if (!selectedSeed) { tip('请选择种子'); return; }
+    const cfg = seeds[selectedSeed];
+    if (!cfg) { tip('请选择有效种子'); return; }
+    const seedCount = inventory[selectedSeed] || 0;
+    if (seedCount <= 0) { tip('种子不足，去商店补货'); showToast('种子不足，去商店补货'); return; }
+    const emptyTiles = [];
+    grid.forEach((tile, idx) => { if (!tile.locked && !tile.crop) emptyTiles.push(idx); });
+    if (!emptyTiles.length) { tip('没有空地可以播种'); return; }
+    let planted = 0;
+    for (const idx of emptyTiles) {
+      if ((inventory[selectedSeed] || 0) <= 0) break;
+      const tile = grid[idx];
+      tile.crop = { seedId: selectedSeed };
+      tile.plantedAt = gameTimeMinutes;
+      tile.growTime = calcGrowTimeForTile(cfg, tile); // season: 使用季节公式
+      tile.ready = false;
+      inventory[selectedSeed] -= 1;
+      planted += 1;
+    }
+    if (planted === 0) { tip('种子不足，去商店补货'); return; }
+    tip(`已在 ${planted} 块地播种 ${cfg.name}`);
+    showToast(`播种完成：${planted} 块地`);
+    renderUIQuick();
+  }
+
+  function handleQuickFertilize() {
+    const targets = [];
+    grid.forEach(tile => { if (!tile.locked && tile.crop) targets.push(tile); });
+    if (!targets.length) { tip('没有可施肥的地块'); return; }
+    targets.forEach(tile => {
+      tile.growTime = Math.max(30, Math.round(tile.growTime * 0.9));
+    });
+    tip(`已为 ${targets.length} 块地施肥，生长时间缩短 10%`);
+    showToast(`施肥完成：${targets.length} 块地`);
+    renderUIQuick();
+  }
+
+  function handleToggleDisplayMode() {
+    const next = mode === 'normal' ? 'swap' : 'normal';
+    setMode(next);
+    showToast(`已切换到${next === 'normal' ? '正常' : '交换'}模式`);
+  }
+
+  // ========= 启动 =========
+  init();
+</script>
+</body>
+</html>
